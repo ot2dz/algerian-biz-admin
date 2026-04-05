@@ -4,6 +4,12 @@ import { db, profilesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { GetProfileResponse, UpdateProfileBody, UpdateProfileResponse } from "@workspace/api-zod";
 
+function stripNulls<T extends Record<string, unknown>>(obj: T): T {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([, v]) => v !== null)
+  ) as T;
+}
+
 const router: IRouter = Router();
 
 function getSupabaseAdmin() {
@@ -44,10 +50,10 @@ router.get("/profile", async (req, res): Promise<void> => {
     profile = created;
   }
 
-  res.json(GetProfileResponse.parse({
+  res.json(GetProfileResponse.parse(stripNulls({
     ...profile,
-    created_at: profile.created_at?.toISOString(),
-  }));
+    created_at: profile.created_at?.toISOString() ?? null,
+  })));
 });
 
 router.put("/profile", async (req, res): Promise<void> => {
@@ -84,10 +90,10 @@ router.put("/profile", async (req, res): Promise<void> => {
     profile = updated;
   }
 
-  res.json(UpdateProfileResponse.parse({
+  res.json(UpdateProfileResponse.parse(stripNulls({
     ...profile,
-    created_at: profile.created_at?.toISOString(),
-  }));
+    created_at: profile.created_at?.toISOString() ?? null,
+  })));
 });
 
 export default router;
