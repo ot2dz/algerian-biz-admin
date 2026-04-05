@@ -27,8 +27,17 @@ Full-stack Algerian business tax and administrative automation platform. Built w
 ## Pages
 
 - `/login` — Login & registration (Supabase auth)
-- `/` — Protected dashboard with stats, G50 PDF button (mock)
+- `/auth/callback` — Email confirmation handler
+- `/` — Protected dashboard with stats, company selector, G50 PDF button (mock)
 - `/profile` — User profile update form (NIF, NIS, RC, AI, company info)
+
+## Phase 2 Features
+
+- **Onboarding Banner** — Sticky orange banner shown when user has no profile/company data; click to open modal
+- **Onboarding Modal** — 2-step form: (1) Personal info (first_name, last_name, phone), (2) Company info (name, NIF, RC, tax_regime)
+- **Company Selector** — Dropdown in sidebar listing all user companies; switch active company
+- **Multi-Company** — Create unlimited companies; dashboard reflects selected company
+- **CompanyContext** — React context managing selected company and company list across pages
 
 ## Key Commands
 
@@ -51,7 +60,13 @@ Full-stack Algerian business tax and administrative automation platform. Built w
 
 - `profiles` table — user profiles linked to Supabase auth users
   - id (text, primary key = Supabase user UUID)
-  - email, full_name, company_name, nif, nis, rc, ai
+  - email, first_name, last_name, phone, full_name, company_name, nif, nis, rc, ai
+  - created_at
+
+- `companies` table — companies owned by users
+  - id (uuid, primary key)
+  - owner_id (text, Supabase user UUID)
+  - company_name (not null), nif_number, rc_number, tax_regime (IFU/Real/RSI)
   - created_at
 
 ## Future Phases

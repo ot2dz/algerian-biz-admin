@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * API specification for Nafida Biz
- * OpenAPI spec version: 0.1.0
+ * OpenAPI spec version: 0.2.0
  */
 export interface HealthStatus {
   status: string;
@@ -12,6 +12,9 @@ export interface HealthStatus {
 export interface UserProfile {
   id: string;
   email: string;
+  first_name?: string;
+  last_name?: string;
+  phone?: string;
   full_name?: string;
   company_name?: string;
   nif?: string;
@@ -22,10 +25,30 @@ export interface UserProfile {
 }
 
 export interface UpdateProfileBody {
+  first_name?: string;
+  last_name?: string;
+  phone?: string;
   full_name?: string;
   company_name?: string;
   nif?: string;
   nis?: string;
   rc?: string;
   ai?: string;
+}
+
+export interface Company {
+  id: string;
+  owner_id: string;
+  company_name: string;
+  nif_number?: string;
+  rc_number?: string;
+  tax_regime?: string;
+  created_at?: string;
+}
+
+export interface CreateCompanyBody {
+  company_name: string;
+  nif_number?: string;
+  rc_number?: string;
+  tax_regime?: string;
 }

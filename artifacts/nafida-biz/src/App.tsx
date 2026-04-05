@@ -9,6 +9,7 @@ import DashboardPage from "@/pages/dashboard";
 import ProfilePage from "@/pages/profile";
 import AuthCallbackPage from "@/pages/auth-callback";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { CompanyProvider } from "@/context/CompanyContext";
 
 const queryClient = new QueryClient();
 
@@ -19,12 +20,16 @@ function Router() {
       <Route path="/auth/callback" component={AuthCallbackPage} />
       <Route path="/">
         <ProtectedRoute>
-          <DashboardPage />
+          <CompanyProvider>
+            <DashboardPage />
+          </CompanyProvider>
         </ProtectedRoute>
       </Route>
       <Route path="/profile">
         <ProtectedRoute>
-          <ProfilePage />
+          <CompanyProvider>
+            <ProfilePage />
+          </CompanyProvider>
         </ProtectedRoute>
       </Route>
       <Route component={NotFound} />

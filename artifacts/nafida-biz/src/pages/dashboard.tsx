@@ -1,17 +1,25 @@
 import { useAuth } from "@/hooks/useAuth";
 import { PageLayout } from "@/components/Sidebar";
+import { NotificationBanner } from "@/components/NotificationBanner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FileText, CheckCircle2, AlertCircle, Briefcase } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useGetProfile } from "@workspace/api-client-react";
+import { useCompany } from "@/context/CompanyContext";
 
 export default function DashboardPage() {
   const { user } = useAuth();
   const { data: profile } = useGetProfile();
+  const { selectedCompany } = useCompany();
   const { toast } = useToast();
 
-  const displayName = profile?.full_name || user?.email?.split('@')[0] || "مستخدم";
+  const displayName =
+    profile?.first_name
+      ? `${profile.first_name} ${profile.last_name || ""}`.trim()
+      : profile?.full_name || user?.email?.split("@")[0] || "مستخدم";
+
+  const companyDisplay = selectedCompany?.company_name || "لا توجد شركة مختارة";
 
   const stats = [
     { label: "مجموع التصريحات", value: "12", icon: FileText, color: "text-blue-500", bg: "bg-blue-500/10" },
@@ -22,13 +30,20 @@ export default function DashboardPage() {
 
   return (
     <PageLayout>
-      <div className="space-y-8 max-w-6xl mx-auto">
+      <NotificationBanner />
+      <div className="space-y-8 max-w-6xl mx-auto p-8">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-slate-800">مرحباً، {displayName}</h1>
-            <p className="text-slate-500 mt-2">إليك نظرة عامة على وضعيتك الجبائية اليوم.</p>
+            <h1 className="text-3xl font-bold text-slate-800" data-testid="text-welcome">
+              مرحباً، {displayName}
+            </h1>
+            <p className="text-slate-500 mt-1 text-sm font-medium" data-testid="text-company-name">
+              <i className="fas fa-building ml-1 text-primary"></i>
+              {companyDisplay}
+            </p>
+            <p className="text-slate-400 mt-1 text-xs">إليك نظرة عامة على وضعيتك الجبائية اليوم.</p>
           </div>
-          <Button 
+          <Button
             className="bg-primary hover:bg-orange-600 text-white px-6 py-6 rounded-xl font-bold shadow-lg shadow-primary/20 flex items-center gap-2"
             onClick={() => toast({ title: "قريباً", description: "هذه الميزة قيد التطوير" })}
             data-testid="button-generate-pdf"
@@ -40,14 +55,17 @@ export default function DashboardPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {stats.map((stat, i) => (
-            <Card key={i} className="border-0 shadow-xl shadow-slate-200/40 rounded-2xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300">
+            <Card
+              key={i}
+              className="border-0 shadow-xl shadow-slate-200/40 rounded-2xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300"
+            >
               <CardContent className="p-6 flex items-center gap-4">
                 <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${stat.bg}`}>
                   <stat.icon className={`w-7 h-7 ${stat.color}`} />
                 </div>
                 <div>
                   <p className="text-slate-500 text-sm font-medium">{stat.label}</p>
-                  <p className="text-2xl font-bold text-slate-800 mt-1">{stat.value}</p>
+                  <p className="text-2xl font-bold text-slate-800 mt-1" data-testid={`stat-value-${i}`}>{stat.value}</p>
                 </div>
               </CardContent>
             </Card>

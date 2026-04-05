@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.2.0
  */
 
-export interface HealthStatus {
-  status: string;
+export interface CreateCompanyBody {
+  company_name: string;
+  nif_number?: string;
+  rc_number?: string;
+  tax_regime?: string;
 }

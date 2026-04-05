@@ -3,12 +3,11 @@
  * Do not edit manually.
  * Api
  * API specification for Nafida Biz
- * OpenAPI spec version: 0.1.0
+ * OpenAPI spec version: 0.2.0
  */
 import * as zod from "zod";
 
 /**
- * Returns server health status
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({
@@ -16,12 +15,14 @@ export const HealthCheckResponse = zod.object({
 });
 
 /**
- * Returns profile info for the authenticated user
  * @summary Get current user profile
  */
 export const GetProfileResponse = zod.object({
   id: zod.string(),
   email: zod.string(),
+  first_name: zod.string().optional(),
+  last_name: zod.string().optional(),
+  phone: zod.string().optional(),
   full_name: zod.string().optional(),
   company_name: zod.string().optional(),
   nif: zod.string().optional(),
@@ -35,6 +36,9 @@ export const GetProfileResponse = zod.object({
  * @summary Update current user profile
  */
 export const UpdateProfileBody = zod.object({
+  first_name: zod.string().optional(),
+  last_name: zod.string().optional(),
+  phone: zod.string().optional(),
   full_name: zod.string().optional(),
   company_name: zod.string().optional(),
   nif: zod.string().optional(),
@@ -46,6 +50,9 @@ export const UpdateProfileBody = zod.object({
 export const UpdateProfileResponse = zod.object({
   id: zod.string(),
   email: zod.string(),
+  first_name: zod.string().optional(),
+  last_name: zod.string().optional(),
+  phone: zod.string().optional(),
   full_name: zod.string().optional(),
   company_name: zod.string().optional(),
   nif: zod.string().optional(),
@@ -53,4 +60,28 @@ export const UpdateProfileResponse = zod.object({
   rc: zod.string().optional(),
   ai: zod.string().optional(),
   created_at: zod.string().optional(),
+});
+
+/**
+ * @summary List all companies for current user
+ */
+export const ListCompaniesResponseItem = zod.object({
+  id: zod.string(),
+  owner_id: zod.string(),
+  company_name: zod.string(),
+  nif_number: zod.string().optional(),
+  rc_number: zod.string().optional(),
+  tax_regime: zod.string().optional(),
+  created_at: zod.string().optional(),
+});
+export const ListCompaniesResponse = zod.array(ListCompaniesResponseItem);
+
+/**
+ * @summary Create a new company
+ */
+export const CreateCompanyBody = zod.object({
+  company_name: zod.string(),
+  nif_number: zod.string().optional(),
+  rc_number: zod.string().optional(),
+  tax_regime: zod.string().optional(),
 });

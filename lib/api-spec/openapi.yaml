@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
-  version: 0.1.0
+  version: 0.2.0
   description: API specification for Nafida Biz
 servers:
   - url: /api
@@ -12,13 +12,14 @@ tags:
     description: Health operations
   - name: profile
     description: User profile operations
+  - name: companies
+    description: Company management
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -26,12 +27,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
   /profile:
     get:
       operationId: getProfile
       tags: [profile]
       summary: Get current user profile
-      description: Returns profile info for the authenticated user
       responses:
         "200":
           description: Profile fetched
@@ -60,6 +61,43 @@ paths:
                 $ref: "#/components/schemas/UserProfile"
         "401":
           description: Unauthorized
+
+  /companies:
+    get:
+      operationId: listCompanies
+      tags: [companies]
+      summary: List all companies for current user
+      responses:
+        "200":
+          description: Companies list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Company"
+        "401":
+          description: Unauthorized
+    post:
+      operationId: createCompany
+      tags: [companies]
+      summary: Create a new company
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCompanyBody"
+      responses:
+        "201":
+          description: Company created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Company"
+        "401":
+          description: Unauthorized
+
 components:
   schemas:
     HealthStatus:
@@ -69,12 +107,19 @@ components:
           type: string
       required:
         - status
+
     UserProfile:
       type: object
       properties:
         id:
           type: string
         email:
+          type: string
+        first_name:
+          type: string
+        last_name:
+          type: string
+        phone:
           type: string
         full_name:
           type: string
@@ -93,9 +138,16 @@ components:
       required:
         - id
         - email
+
     UpdateProfileBody:
       type: object
       properties:
+        first_name:
+          type: string
+        last_name:
+          type: string
+        phone:
+          type: string
         full_name:
           type: string
         company_name:
@@ -108,3 +160,39 @@ components:
           type: string
         ai:
           type: string
+
+    Company:
+      type: object
+      properties:
+        id:
+          type: string
+        owner_id:
+          type: string
+        company_name:
+          type: string
+        nif_number:
+          type: string
+        rc_number:
+          type: string
+        tax_regime:
+          type: string
+        created_at:
+          type: string
+      required:
+        - id
+        - owner_id
+        - company_name
+
+    CreateCompanyBody:
+      type: object
+      properties:
+        company_name:
+          type: string
+        nif_number:
+          type: string
+        rc_number:
+          type: string
+        tax_regime:
+          type: string
+      required:
+        - company_name

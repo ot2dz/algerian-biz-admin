@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * API specification for Nafida Biz
- * OpenAPI spec version: 0.1.0
+ * OpenAPI spec version: 0.2.0
  */
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
@@ -17,6 +17,8 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  Company,
+  CreateCompanyBody,
   HealthStatus,
   UpdateProfileBody,
   UserProfile,
@@ -32,7 +34,6 @@ type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 /**
- * Returns server health status
  * @summary Health check
  */
 export const getHealthCheckUrl = () => {
@@ -108,7 +109,6 @@ export function useHealthCheck<
 }
 
 /**
- * Returns profile info for the authenticated user
  * @summary Get current user profile
  */
 export const getGetProfileUrl = () => {
@@ -267,4 +267,165 @@ export const useUpdateProfile = <
   TContext
 > => {
   return useMutation(getUpdateProfileMutationOptions(options));
+};
+
+/**
+ * @summary List all companies for current user
+ */
+export const getListCompaniesUrl = () => {
+  return `/api/companies`;
+};
+
+export const listCompanies = async (
+  options?: RequestInit,
+): Promise<Company[]> => {
+  return customFetch<Company[]>(getListCompaniesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListCompaniesQueryKey = () => {
+  return [`/api/companies`] as const;
+};
+
+export const getListCompaniesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listCompanies>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listCompanies>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListCompaniesQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listCompanies>>> = ({
+    signal,
+  }) => listCompanies({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listCompanies>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListCompaniesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listCompanies>>
+>;
+export type ListCompaniesQueryError = ErrorType<void>;
+
+/**
+ * @summary List all companies for current user
+ */
+
+export function useListCompanies<
+  TData = Awaited<ReturnType<typeof listCompanies>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listCompanies>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListCompaniesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a new company
+ */
+export const getCreateCompanyUrl = () => {
+  return `/api/companies`;
+};
+
+export const createCompany = async (
+  createCompanyBody: CreateCompanyBody,
+  options?: RequestInit,
+): Promise<Company> => {
+  return customFetch<Company>(getCreateCompanyUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createCompanyBody),
+  });
+};
+
+export const getCreateCompanyMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createCompany>>,
+    TError,
+    { data: BodyType<CreateCompanyBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createCompany>>,
+  TError,
+  { data: BodyType<CreateCompanyBody> },
+  TContext
+> => {
+  const mutationKey = ["createCompany"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createCompany>>,
+    { data: BodyType<CreateCompanyBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createCompany(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateCompanyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createCompany>>
+>;
+export type CreateCompanyMutationBody = BodyType<CreateCompanyBody>;
+export type CreateCompanyMutationError = ErrorType<void>;
+
+/**
+ * @summary Create a new company
+ */
+export const useCreateCompany = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createCompany>>,
+    TError,
+    { data: BodyType<CreateCompanyBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createCompany>>,
+  TError,
+  { data: BodyType<CreateCompanyBody> },
+  TContext
+> => {
+  return useMutation(getCreateCompanyMutationOptions(options));
 };
