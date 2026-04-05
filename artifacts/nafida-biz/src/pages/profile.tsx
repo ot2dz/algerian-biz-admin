@@ -11,7 +11,9 @@ import { useGetProfile, useUpdateProfile, getGetProfileQueryKey } from "@workspa
 import { useQueryClient } from "@tanstack/react-query";
 
 const profileSchema = z.object({
-  full_name: z.string().optional(),
+  first_name: z.string().optional(),
+  last_name: z.string().optional(),
+  phone: z.string().optional(),
   company_name: z.string().optional(),
   nif: z.string().optional(),
   nis: z.string().optional(),
@@ -30,7 +32,9 @@ export default function ProfilePage() {
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
-      full_name: "",
+      first_name: "",
+      last_name: "",
+      phone: "",
       company_name: "",
       nif: "",
       nis: "",
@@ -42,7 +46,9 @@ export default function ProfilePage() {
   useEffect(() => {
     if (profile) {
       form.reset({
-        full_name: profile.full_name || "",
+        first_name: profile.first_name || "",
+        last_name: profile.last_name || "",
+        phone: profile.phone || "",
         company_name: profile.company_name || "",
         nif: profile.nif || "",
         nis: profile.nis || "",
@@ -53,15 +59,27 @@ export default function ProfilePage() {
   }, [profile, form]);
 
   const onSubmit = (values: ProfileFormValues) => {
-    updateProfile.mutate({ data: values }, {
-      onSuccess: (data) => {
-        toast({ title: "تم الحفظ", description: "تم تحديث الملف الشخصي بنجاح" });
-        queryClient.setQueryData(getGetProfileQueryKey(), data);
+    const firstName = values.first_name?.trim() || "";
+    const lastName = values.last_name?.trim() || "";
+    const fullName = [firstName, lastName].filter(Boolean).join(" ");
+
+    updateProfile.mutate(
+      {
+        data: {
+          ...values,
+          full_name: fullName || undefined,
+        },
       },
-      onError: () => {
-        toast({ variant: "destructive", title: "خطأ", description: "فشل في تحديث الملف الشخصي" });
+      {
+        onSuccess: (data) => {
+          toast({ title: "تم الحفظ", description: "تم تحديث الملف الشخصي بنجاح" });
+          queryClient.setQueryData(getGetProfileQueryKey(), data);
+        },
+        onError: () => {
+          toast({ variant: "destructive", title: "خطأ", description: "فشل في تحديث الملف الشخصي" });
+        },
       }
-    });
+    );
   };
 
   if (isLoading) {
@@ -83,62 +101,107 @@ export default function ProfilePage() {
           <p className="text-slate-500 mt-2">قم بتحديث معلوماتك الشخصية وبيانات شركتك</p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/40 p-8 border border-slate-100">
+        <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/40 p-8 border border-slate-100 space-y-8">
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField control={form.control} name="full_name" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>الاسم الكامل</FormLabel>
-                    <FormControl><Input {...field} data-testid="input-fullname" className="bg-slate-50" /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
 
-                <FormField control={form.control} name="company_name" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>اسم الشركة / النشاط</FormLabel>
-                    <FormControl><Input {...field} data-testid="input-company" className="bg-slate-50" /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
+              <div>
+                <h2 className="text-base font-semibold text-slate-700 mb-4 pb-2 border-b border-slate-100">
+                  المعلومات الشخصية
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <FormField control={form.control} name="first_name" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>الاسم الأول</FormLabel>
+                      <FormControl>
+                        <Input {...field} data-testid="input-first-name" className="bg-slate-50" placeholder="أحمد" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
 
-                <FormField control={form.control} name="nif" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>رقم التعريف الجبائي (NIF)</FormLabel>
-                    <FormControl><Input {...field} data-testid="input-nif" className="bg-slate-50 text-left font-mono" dir="ltr" /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
+                  <FormField control={form.control} name="last_name" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>اللقب</FormLabel>
+                      <FormControl>
+                        <Input {...field} data-testid="input-last-name" className="bg-slate-50" placeholder="بن علي" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
 
-                <FormField control={form.control} name="nis" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>رقم التعريف الإحصائي (NIS)</FormLabel>
-                    <FormControl><Input {...field} data-testid="input-nis" className="bg-slate-50 text-left font-mono" dir="ltr" /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
+                  <FormField control={form.control} name="phone" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>رقم الهاتف</FormLabel>
+                      <FormControl>
+                        <Input {...field} data-testid="input-phone" className="bg-slate-50" placeholder="0555 12 34 56" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </div>
+              </div>
 
-                <FormField control={form.control} name="rc" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>رقم السجل التجاري (RC)</FormLabel>
-                    <FormControl><Input {...field} data-testid="input-rc" className="bg-slate-50 text-left font-mono" dir="ltr" /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
+              <div>
+                <h2 className="text-base font-semibold text-slate-700 mb-4 pb-2 border-b border-slate-100">
+                  بيانات النشاط التجاري
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <FormField control={form.control} name="company_name" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>اسم الشركة / النشاط</FormLabel>
+                      <FormControl>
+                        <Input {...field} data-testid="input-company" className="bg-slate-50" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
 
-                <FormField control={form.control} name="ai" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>رقم المادة (Article d'Imposition)</FormLabel>
-                    <FormControl><Input {...field} data-testid="input-ai" className="bg-slate-50 text-left font-mono" dir="ltr" /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
+                  <FormField control={form.control} name="nif" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>رقم التعريف الجبائي (NIF)</FormLabel>
+                      <FormControl>
+                        <Input {...field} data-testid="input-nif" className="bg-slate-50 text-left font-mono" dir="ltr" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+
+                  <FormField control={form.control} name="nis" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>رقم التعريف الإحصائي (NIS)</FormLabel>
+                      <FormControl>
+                        <Input {...field} data-testid="input-nis" className="bg-slate-50 text-left font-mono" dir="ltr" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+
+                  <FormField control={form.control} name="rc" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>رقم السجل التجاري (RC)</FormLabel>
+                      <FormControl>
+                        <Input {...field} data-testid="input-rc" className="bg-slate-50 text-left font-mono" dir="ltr" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+
+                  <FormField control={form.control} name="ai" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>رقم المادة (Article d'Imposition)</FormLabel>
+                      <FormControl>
+                        <Input {...field} data-testid="input-ai" className="bg-slate-50 text-left font-mono" dir="ltr" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </div>
               </div>
 
               <div className="flex justify-end pt-6 border-t border-slate-100">
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   className="bg-primary hover:bg-orange-600 text-white px-8 py-6 rounded-xl font-bold shadow-lg shadow-primary/20"
                   disabled={updateProfile.isPending}
                   data-testid="button-save-profile"
