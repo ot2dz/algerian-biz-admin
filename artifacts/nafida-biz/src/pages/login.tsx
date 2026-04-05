@@ -40,11 +40,14 @@ export default function LoginPage() {
         const { error } = await supabase.auth.signUp({
           email: values.email,
           password: values.password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
+          },
         });
         if (error) throw error;
         toast({
-          title: "تم إنشاء الحساب بنجاح",
-          description: "يمكنك الآن تسجيل الدخول",
+          title: "تم إرسال رابط التأكيد",
+          description: "تحقق من بريدك الإلكتروني وانقر على رابط التأكيد لتفعيل حسابك",
         });
         setIsSignUp(false);
       } else {

@@ -7,6 +7,7 @@ import NotFound from "@/pages/not-found";
 import LoginPage from "@/pages/login";
 import DashboardPage from "@/pages/dashboard";
 import ProfilePage from "@/pages/profile";
+import AuthCallbackPage from "@/pages/auth-callback";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -15,6 +16,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/login" component={LoginPage} />
+      <Route path="/auth/callback" component={AuthCallbackPage} />
       <Route path="/">
         <ProtectedRoute>
           <DashboardPage />
