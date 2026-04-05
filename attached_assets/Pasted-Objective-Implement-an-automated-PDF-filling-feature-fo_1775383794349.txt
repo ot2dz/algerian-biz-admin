@@ -1,0 +1,55 @@
+Objective: Implement an automated PDF filling feature for Algerian Tax Forms (G12 Preliminary and G12 Bis Final) based on user data in the "Nafida Biz" platform.
+
+1. Library & Setup:
+
+    Use pdf-lib (Node.js) to open existing PDF templates and fill form fields or write text over specific coordinates.
+
+    Ensure the server can serve the generated PDF for download.
+
+2. Form Mapping & Logic (Based on Provided Documents):
+
+A. G12 - Preliminary Declaration (التصريح التقديري):
+
+    Identification: Map Nom/Raison Sociale, NIF (Numéro d'Identification Fiscale), Activité, and Adresse from the Supabase companies table.
+
+    Calculations:
+
+        Trading/Production: Apply 5% rate to Chiffre d'affaires prévisionnel.
+
+        Services/Other: Apply 12% rate.
+
+        Auto-entrepreneur: Apply 0.5% rate.
+
+    Minimum Tax: Ensure the calculated IFU is not less than 30,000 DA (or 10,000 DA for auto-entrepreneurs).
+
+    Payment Method: If "Fractional Payment" (التسديد بالتقسيط) is selected, fill the 50% initial payment field.
+
+    Deadline: Set the filing deadline to June 30th of the current year.
+
+B. G12 Bis - Final Declaration (التصريح النهائي):
+
+    Data Input: Fetch the "Preliminary Revenue" (from G12) and compare it with the "Realized Revenue" (رقم الأعمال المحقق) entered by the user.
+
+    Complementary Tax (الضريبة التكميلية): Calculate the difference (Realized - Preliminary). If positive, apply the corresponding rate (5%, 12%, or 0.5%) to the surplus.
+
+    Identification: Same as G12 but include the "Phone Number" field.
+
+    Salaries Section: If the user has employees, fill the "Volet Réservé aux Salaires" (number of employees, total salaries, social charges, and IRG) .
+
+    Deadline: Set the filing deadline to January 20th of the following year.
+
+3. Functional Flow:
+
+    Create a backend endpoint /api/generate-tax-pdf that takes company_id and declaration_type (G12 or G12 Bis).
+
+    Fetch the data from Supabase.
+
+    Populate the PDF template.
+
+    Return the PDF as a downloadable buffer.
+
+4. Visual UI Integration:
+
+    On the "Taxes" page, add a "Download PDF" icon next to each declaration in the history table.
+
+    Show a preview of the calculated values before the PDF is generated to ensure user accuracy.

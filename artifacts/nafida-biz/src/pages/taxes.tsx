@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/context/CompanyContext";
+import { supabase } from "@/lib/supabase";
 import {
   useListDeclarations,
   useCreateDeclaration,
@@ -468,9 +469,42 @@ export default function TaxesPage() {
   const { selectedCompany } = useCompany();
   const [wizardOpen, setWizardOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "paid">("all");
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const updateStatus = useUpdateDeclarationStatus();
+
+  const handleDownloadPDF = async (declarationId: string, taxType: string, pdfVariant: "G12" | "G12Bis" = "G12") => {
+    if (taxType !== "G12") {
+      toast({ title: "قريباً", description: "تحميل PDF لـ G50 قيد التطوير" });
+      return;
+    }
+    try {
+      setDownloadingId(declarationId + pdfVariant);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("غير مسجل الدخول");
+
+      const resp = await fetch(
+        `/api/generate-tax-pdf?declaration_id=${declarationId}&type=${pdfVariant}`,
+        { headers: { Authorization: `Bearer ${session.access_token}` } }
+      );
+      if (!resp.ok) throw new Error(`خطأ ${resp.status}`);
+
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${pdfVariant}_${declarationId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "خطأ في التحميل", description: err.message });
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   const isIFU = selectedCompany?.tax_regime === "IFU";
   const hasStartupLabel = selectedCompany?.has_startup_label === true;
@@ -683,13 +717,42 @@ export default function TaxesPage() {
                                 <CheckCircle2 className="w-3.5 h-3.5" /> دفع
                               </button>
                             )}
-                            <button
-                              onClick={() => toast({ title: "قريباً", description: "تحميل PDF قيد التطوير" })}
-                              className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 font-medium px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors"
-                              data-testid={`btn-download-${d.id}`}
-                            >
-                              <Download className="w-3.5 h-3.5" /> PDF
-                            </button>
+                            {d.tax_type === "G12" ? (
+                              <>
+                                <button
+                                  onClick={() => handleDownloadPDF(d.id, d.tax_type ?? "", "G12")}
+                                  disabled={downloadingId === d.id + "G12"}
+                                  className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 transition-colors disabled:opacity-50"
+                                  data-testid={`btn-download-g12-${d.id}`}
+                                  title="تحميل التصريح التقديري G12"
+                                >
+                                  {downloadingId === d.id + "G12"
+                                    ? <i className="fas fa-spinner fa-spin w-3.5 h-3.5" />
+                                    : <Download className="w-3.5 h-3.5" />}
+                                  G12
+                                </button>
+                                <button
+                                  onClick={() => handleDownloadPDF(d.id, d.tax_type ?? "", "G12Bis")}
+                                  disabled={downloadingId === d.id + "G12Bis"}
+                                  className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 transition-colors disabled:opacity-50"
+                                  data-testid={`btn-download-g12bis-${d.id}`}
+                                  title="تحميل التصريح النهائي G12 مكرر"
+                                >
+                                  {downloadingId === d.id + "G12Bis"
+                                    ? <i className="fas fa-spinner fa-spin w-3.5 h-3.5" />
+                                    : <Download className="w-3.5 h-3.5" />}
+                                  G12 مكرر
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={() => toast({ title: "قريباً", description: "تحميل PDF لـ G50 قيد التطوير" })}
+                                className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 font-medium px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors"
+                                data-testid={`btn-download-${d.id}`}
+                              >
+                                <Download className="w-3.5 h-3.5" /> PDF
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
