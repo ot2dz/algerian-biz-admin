@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, UserCircle, LogOut, Building2, ChevronDown, Plus, Check } from "lucide-react";
+import { LayoutDashboard, UserCircle, LogOut, Building2, ChevronDown, Plus, Check, ReceiptText } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useCompany } from "@/context/CompanyContext";
 import { OnboardingModal } from "@/components/OnboardingModal";
@@ -17,6 +17,7 @@ export function Sidebar() {
 
   const navItems = [
     { href: "/", label: "لوحة القيادة", icon: LayoutDashboard },
+    { href: "/taxes", label: "الضرائب", icon: ReceiptText },
     { href: "/profile", label: "الملف الشخصي", icon: UserCircle },
   ];
 

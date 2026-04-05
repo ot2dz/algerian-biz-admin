@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * API specification for Nafida Biz
- * OpenAPI spec version: 0.2.0
+ * OpenAPI spec version: 0.3.0
  */
 import * as zod from "zod";
 
@@ -84,4 +84,80 @@ export const CreateCompanyBody = zod.object({
   nif_number: zod.string().optional(),
   rc_number: zod.string().optional(),
   tax_regime: zod.string().optional(),
+});
+
+/**
+ * @summary List declarations for a company
+ */
+export const ListDeclarationsQueryParams = zod.object({
+  company_id: zod.coerce.string(),
+});
+
+export const ListDeclarationsResponseItem = zod.object({
+  id: zod.string(),
+  owner_id: zod.string(),
+  company_id: zod.string(),
+  period: zod.string(),
+  tax_type: zod.string(),
+  revenue: zod.string().optional(),
+  tax_rate: zod.string().optional(),
+  tax_amount: zod.string().optional(),
+  tap_amount: zod.string().optional(),
+  tva_amount: zod.string().optional(),
+  irg_amount: zod.string().optional(),
+  purchases: zod.string().optional(),
+  salaries: zod.string().optional(),
+  status: zod.string(),
+  notes: zod.string().optional(),
+  created_at: zod.string().optional(),
+});
+export const ListDeclarationsResponse = zod.array(ListDeclarationsResponseItem);
+
+/**
+ * @summary Create a new tax declaration
+ */
+export const CreateDeclarationBody = zod.object({
+  company_id: zod.string(),
+  period: zod.string(),
+  tax_type: zod.string(),
+  revenue: zod.string().optional(),
+  tax_rate: zod.string().optional(),
+  tax_amount: zod.string().optional(),
+  tap_amount: zod.string().optional(),
+  tva_amount: zod.string().optional(),
+  irg_amount: zod.string().optional(),
+  purchases: zod.string().optional(),
+  salaries: zod.string().optional(),
+  status: zod.string(),
+  notes: zod.string().optional(),
+});
+
+/**
+ * @summary Update declaration status
+ */
+export const UpdateDeclarationStatusParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const UpdateDeclarationStatusBody = zod.object({
+  status: zod.string(),
+});
+
+export const UpdateDeclarationStatusResponse = zod.object({
+  id: zod.string(),
+  owner_id: zod.string(),
+  company_id: zod.string(),
+  period: zod.string(),
+  tax_type: zod.string(),
+  revenue: zod.string().optional(),
+  tax_rate: zod.string().optional(),
+  tax_amount: zod.string().optional(),
+  tap_amount: zod.string().optional(),
+  tva_amount: zod.string().optional(),
+  irg_amount: zod.string().optional(),
+  purchases: zod.string().optional(),
+  salaries: zod.string().optional(),
+  status: zod.string(),
+  notes: zod.string().optional(),
+  created_at: zod.string().optional(),
 });

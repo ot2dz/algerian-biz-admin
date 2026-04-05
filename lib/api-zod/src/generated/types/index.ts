@@ -3,11 +3,15 @@
  * Do not edit manually.
  * Api
  * API specification for Nafida Biz
- * OpenAPI spec version: 0.2.0
+ * OpenAPI spec version: 0.3.0
  */
 
 export * from "./company";
 export * from "./createCompanyBody";
+export * from "./createDeclarationBody";
+export * from "./declaration";
 export * from "./healthStatus";
+export * from "./listDeclarationsParams";
+export * from "./updateDeclarationStatusBody";
 export * from "./updateProfileBody";
 export * from "./userProfile";

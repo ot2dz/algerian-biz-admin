@@ -7,6 +7,7 @@ import NotFound from "@/pages/not-found";
 import LoginPage from "@/pages/login";
 import DashboardPage from "@/pages/dashboard";
 import ProfilePage from "@/pages/profile";
+import TaxesPage from "@/pages/taxes";
 import AuthCallbackPage from "@/pages/auth-callback";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { CompanyProvider } from "@/context/CompanyContext";
@@ -29,6 +30,13 @@ function Router() {
         <ProtectedRoute>
           <CompanyProvider>
             <ProfilePage />
+          </CompanyProvider>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/taxes">
+        <ProtectedRoute>
+          <CompanyProvider>
+            <TaxesPage />
           </CompanyProvider>
         </ProtectedRoute>
       </Route>

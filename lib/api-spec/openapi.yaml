@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
-  version: 0.2.0
+  version: 0.3.0
   description: API specification for Nafida Biz
 servers:
   - url: /api
@@ -14,6 +14,8 @@ tags:
     description: User profile operations
   - name: companies
     description: Company management
+  - name: declarations
+    description: Tax declaration management
 paths:
   /healthz:
     get:
@@ -97,6 +99,77 @@ paths:
                 $ref: "#/components/schemas/Company"
         "401":
           description: Unauthorized
+
+  /declarations:
+    get:
+      operationId: listDeclarations
+      tags: [declarations]
+      summary: List declarations for a company
+      parameters:
+        - in: query
+          name: company_id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Declarations list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Declaration"
+        "401":
+          description: Unauthorized
+    post:
+      operationId: createDeclaration
+      tags: [declarations]
+      summary: Create a new tax declaration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDeclarationBody"
+      responses:
+        "201":
+          description: Declaration created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Declaration"
+        "401":
+          description: Unauthorized
+
+  /declarations/{id}:
+    patch:
+      operationId: updateDeclarationStatus
+      tags: [declarations]
+      summary: Update declaration status
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDeclarationStatusBody"
+      responses:
+        "200":
+          description: Declaration updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Declaration"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
 
 components:
   schemas:
@@ -196,3 +269,89 @@ components:
           type: string
       required:
         - company_name
+
+    Declaration:
+      type: object
+      properties:
+        id:
+          type: string
+        owner_id:
+          type: string
+        company_id:
+          type: string
+        period:
+          type: string
+        tax_type:
+          type: string
+        revenue:
+          type: string
+        tax_rate:
+          type: string
+        tax_amount:
+          type: string
+        tap_amount:
+          type: string
+        tva_amount:
+          type: string
+        irg_amount:
+          type: string
+        purchases:
+          type: string
+        salaries:
+          type: string
+        status:
+          type: string
+        notes:
+          type: string
+        created_at:
+          type: string
+      required:
+        - id
+        - owner_id
+        - company_id
+        - period
+        - tax_type
+        - status
+
+    CreateDeclarationBody:
+      type: object
+      properties:
+        company_id:
+          type: string
+        period:
+          type: string
+        tax_type:
+          type: string
+        revenue:
+          type: string
+        tax_rate:
+          type: string
+        tax_amount:
+          type: string
+        tap_amount:
+          type: string
+        tva_amount:
+          type: string
+        irg_amount:
+          type: string
+        purchases:
+          type: string
+        salaries:
+          type: string
+        status:
+          type: string
+        notes:
+          type: string
+      required:
+        - company_id
+        - period
+        - tax_type
+        - status
+
+    UpdateDeclarationStatusBody:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status

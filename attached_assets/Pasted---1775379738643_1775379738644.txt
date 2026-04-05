@@ -1,0 +1,72 @@
+قسم الضرائب يجب أن يكون أكثر من مجرد جدول؛ يجب أن يكون مساعداً ذكياً. إليك اقتراحي لمكونات هذا القسم (Tax Module):
+1. سجل التصريحات (Declaration History)
+
+هذا الجزء مخصص للأرشفة، لكي يجد المستخدم كل ما قام به سابقاً.
+
+    جدول زمني: يعرض التصريحات (G50 أو G12) مقسمة حسب السنوات والشهور.
+
+    فلترة ذكية: إمكانية البحث عن تصريح معين أو تصفية النتائج حسب الحالة (مدفوع / قيد المعالجة).
+
+    أزرار سريعة: زر "تحميل PDF" وزر "عرض الوصل" (Quittance).
+
+2. معالج التصريح الجديد (Tax Wizard) - الأهم تقنياً
+
+بدل أن يملأ المستخدم نموذج G50 المعقد مباشرة، نقوم بتبسيطه في خطوات (Stepper):
+
+    الخطوة 1: إدخال رقم الأعمال (Chiffre d'affaires) للشهر/الثلاثي.
+
+    الخطوة 2: حساب آلي. (مثلاً إذا كان IFU، النظام يضرب المبلغ في 0.5% أو 5% تلقائياً ويظهر النتيجة).
+
+    الخطوة 3: معاينة (Preview) لنموذج G50/G12 قبل التوليد النهائي.
+
+3. الأجندة الجبائية (Tax Calendar)
+
+هذه اللمسة ستبهر الأساتذة لأنها تظهر الجانب "الإداري" للمنصة:
+
+    مخطط زمني (Timeline): يوضح المواعيد النهائية (Deadlines).
+
+        مثال: "بقي 5 أيام على آخر أجل لإيداع G50 لشهر مارس".
+
+    تنبيهات: نظام إشعارات داخل المنصة يغير لون البطاقة إلى الأحمر إذا اقترب الموعد ولم يتم التصريح.
+
+4. محاكي الضرائب (Tax Simulator)
+
+أداة تسمح للمستخدم بتوقع ضرائبه المستقبلية.
+
+    يدخل المستخدم رقم أعمال تقديري، والنظام يخبره: "ضرائبك المتوقعة لهذا العام هي كذا...". هذا يساعد أصحاب الشركات في التخطيط المالي.
+
+الهيكل التقني المقترح في Replit (المرحلة الرابعة):
+
+بما أنك تستخدم Supabase و Node.js، إليك كيف سنطلب من Replit بناء هذا القسم:
+
+    Phase 4: Comprehensive Tax Module & Wizard
+
+    Context: I need to create a dedicated "Taxes" page. This page should be dynamic based on the tax_regime of the selected company.
+
+    Requirements:
+
+        Navigation: Add a "Taxes" link in the sidebar/navbar that leads to taxes.html.
+
+        Tax Wizard (The Core Feature):
+
+            Create a "New Declaration" button that opens a multi-step modal.
+
+            Logic: >      - If company is IFU: Ask for "Quarterly Revenue" -> Calculate Tax (Rate 0.5% or 5% based on activity) -> Show Result.
+
+                If company is Real: Ask for "Monthly Sales", "Purchases", "Salaries" -> Calculate TAP, TVA, and IRG -> Show total G50 amount.
+
+            Save: Store these calculations in a declarations table in Supabase.
+
+        Tax Archive Table:
+
+            Build a clean table showing: [Period, Tax Type, Amount, Status (Paid/Pending), Actions (Download PDF)].
+
+        Deadline Tracker:
+
+            Add a small UI component showing the next tax deadline (e.g., "Next G50 due by 20th of [Current Month]").
+
+        PDF Integration Hook:
+
+            Add a "Generate PDF" button for each saved declaration. (For now, just a placeholder function that we will link to pdf-lib later).
+
+    Styling: Keep the Slate/Orange theme. Use "Cards" for the Wizard to make it look like a modern FinTech app.

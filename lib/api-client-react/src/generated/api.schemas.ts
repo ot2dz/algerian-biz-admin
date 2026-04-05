@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * API specification for Nafida Biz
- * OpenAPI spec version: 0.2.0
+ * OpenAPI spec version: 0.3.0
  */
 export interface HealthStatus {
   status: string;
@@ -52,3 +52,46 @@ export interface CreateCompanyBody {
   rc_number?: string;
   tax_regime?: string;
 }
+
+export interface Declaration {
+  id: string;
+  owner_id: string;
+  company_id: string;
+  period: string;
+  tax_type: string;
+  revenue?: string;
+  tax_rate?: string;
+  tax_amount?: string;
+  tap_amount?: string;
+  tva_amount?: string;
+  irg_amount?: string;
+  purchases?: string;
+  salaries?: string;
+  status: string;
+  notes?: string;
+  created_at?: string;
+}
+
+export interface CreateDeclarationBody {
+  company_id: string;
+  period: string;
+  tax_type: string;
+  revenue?: string;
+  tax_rate?: string;
+  tax_amount?: string;
+  tap_amount?: string;
+  tva_amount?: string;
+  irg_amount?: string;
+  purchases?: string;
+  salaries?: string;
+  status: string;
+  notes?: string;
+}
+
+export interface UpdateDeclarationStatusBody {
+  status: string;
+}
+
+export type ListDeclarationsParams = {
+  company_id: string;
+};

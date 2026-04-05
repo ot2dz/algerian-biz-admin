@@ -19,3 +19,4 @@
 
 export * from "./profiles";
 export * from "./companies";
+export * from "./declarations";
