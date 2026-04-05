@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Nafida Biz"
+version = "1.0.0"
+id = "artifacts/nafida-biz"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 20331
+
+[services.development]
+run = "pnpm --filter @workspace/nafida-biz run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/nafida-biz", "run", "build" ]
+publicDir = "artifacts/nafida-biz/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20331"
+BASE_PATH = "/"

@@ -3,13 +3,15 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: API specification for Nafida Biz
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: profile
+    description: User profile operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,40 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /profile:
+    get:
+      operationId: getProfile
+      tags: [profile]
+      summary: Get current user profile
+      description: Returns profile info for the authenticated user
+      responses:
+        "200":
+          description: Profile fetched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "401":
+          description: Unauthorized
+    put:
+      operationId: updateProfile
+      tags: [profile]
+      summary: Update current user profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileBody"
+      responses:
+        "200":
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "401":
+          description: Unauthorized
 components:
   schemas:
     HealthStatus:
@@ -33,4 +69,42 @@ components:
           type: string
       required:
         - status
-
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        full_name:
+          type: string
+        company_name:
+          type: string
+        nif:
+          type: string
+        nis:
+          type: string
+        rc:
+          type: string
+        ai:
+          type: string
+        created_at:
+          type: string
+      required:
+        - id
+        - email
+    UpdateProfileBody:
+      type: object
+      properties:
+        full_name:
+          type: string
+        company_name:
+          type: string
+        nif:
+          type: string
+        nis:
+          type: string
+        rc:
+          type: string
+        ai:
+          type: string
