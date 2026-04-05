@@ -11,7 +11,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { User, Building2, ChevronLeft, ChevronRight, Check } from "lucide-react";
+import { User, Building2, ChevronLeft, ChevronRight, Check, ShieldCheck } from "lucide-react";
 
 const step1Schema = z.object({
   first_name: z.string().min(2, "الاسم الأول مطلوب"),
@@ -24,6 +24,7 @@ const step2Schema = z.object({
   nif_number: z.string().optional(),
   rc_number: z.string().optional(),
   tax_regime: z.string().optional(),
+  has_startup_label: z.boolean().optional(),
 });
 
 type Step1Values = z.infer<typeof step1Schema>;
@@ -51,7 +52,7 @@ export function OnboardingModal({ open, onClose, mode = "onboarding" }: Onboardi
 
   const form2 = useForm<Step2Values>({
     resolver: zodResolver(step2Schema),
-    defaultValues: { company_name: "", nif_number: "", rc_number: "", tax_regime: "IFU" },
+    defaultValues: { company_name: "", nif_number: "", rc_number: "", tax_regime: "IFU", has_startup_label: false },
   });
 
   const handleStep1 = (values: Step1Values) => {
@@ -82,6 +83,7 @@ export function OnboardingModal({ open, onClose, mode = "onboarding" }: Onboardi
           nif_number: values.nif_number || undefined,
           rc_number: values.rc_number || undefined,
           tax_regime: values.tax_regime || undefined,
+          has_startup_label: values.has_startup_label ?? false,
         },
       });
 
@@ -259,6 +261,32 @@ export function OnboardingModal({ open, onClose, mode = "onboarding" }: Onboardi
                     </FormItem>
                   )}
                 />
+                {/* Startup Label — shown when IFU is selected */}
+                {form2.watch("tax_regime") === "IFU" && (
+                  <FormField control={form2.control} name="has_startup_label" render={({ field }) => (
+                    <FormItem>
+                      <div
+                        onClick={() => field.onChange(!field.value)}
+                        className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-colors select-none ${field.value ? "border-green-400 bg-green-50" : "border-slate-200 bg-white hover:border-green-300"}`}
+                        data-testid="checkbox-startup-label"
+                      >
+                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${field.value ? "bg-green-500 border-green-500" : "border-slate-300 bg-white"}`}>
+                          {field.value && <Check className="w-3 h-3 text-white" />}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <ShieldCheck className={`w-4 h-4 ${field.value ? "text-green-600" : "text-slate-400"}`} />
+                            <span className="text-sm font-semibold text-slate-800">شركة ناشئة حاصلة على Label</span>
+                          </div>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            الشركات الناشئة المعتمدة معفاة من IFU لعدة سنوات وفقاً للقانون الجزائري
+                          </p>
+                        </div>
+                      </div>
+                    </FormItem>
+                  )} />
+                )}
+
                 <div className="flex gap-3 pt-2">
                   {mode === "onboarding" && (
                     <Button type="button" variant="outline" onClick={() => setStep(1)} className="flex-1 rounded-xl" data-testid="button-prev-step">

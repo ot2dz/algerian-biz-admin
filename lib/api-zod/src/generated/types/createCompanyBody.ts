@@ -11,4 +11,5 @@ export interface CreateCompanyBody {
   nif_number?: string;
   rc_number?: string;
   tax_regime?: string;
+  has_startup_label?: boolean;
 }

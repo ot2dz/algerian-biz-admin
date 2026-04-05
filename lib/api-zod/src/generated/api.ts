@@ -72,6 +72,7 @@ export const ListCompaniesResponseItem = zod.object({
   nif_number: zod.string().optional(),
   rc_number: zod.string().optional(),
   tax_regime: zod.string().optional(),
+  has_startup_label: zod.boolean().optional(),
   created_at: zod.string().optional(),
 });
 export const ListCompaniesResponse = zod.array(ListCompaniesResponseItem);
@@ -84,6 +85,7 @@ export const CreateCompanyBody = zod.object({
   nif_number: zod.string().optional(),
   rc_number: zod.string().optional(),
   tax_regime: zod.string().optional(),
+  has_startup_label: zod.boolean().optional(),
 });
 
 /**

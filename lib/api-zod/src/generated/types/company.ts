@@ -13,5 +13,6 @@ export interface Company {
   nif_number?: string;
   rc_number?: string;
   tax_regime?: string;
+  has_startup_label?: boolean;
   created_at?: string;
 }

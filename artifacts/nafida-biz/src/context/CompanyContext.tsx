@@ -8,6 +8,7 @@ export interface Company {
   nif_number?: string | null;
   rc_number?: string | null;
   tax_regime?: string | null;
+  has_startup_label?: boolean | null;
   created_at?: string | null;
 }
 

@@ -16,115 +16,193 @@ import {
   getListDeclarationsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { CalendarClock, FileText, Plus, Download, CheckCircle2, Clock, ChevronLeft, ChevronRight, Calculator, Eye } from "lucide-react";
+import {
+  CalendarClock, FileText, Plus, Download, CheckCircle2,
+  ChevronLeft, ChevronRight, Calculator, Eye, ShieldCheck, AlertTriangle,
+} from "lucide-react";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 
-// ─── helpers ────────────────────────────────────────────────────────────────
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+const IFU_MINIMUM_TAX = 10_000; // الحد الأدنى للضريبة الجزافية بالدينار الجزائري
+
+const IFU_ACTIVITY_TYPES = [
+  { value: "production", label: "إنتاج وبيع السلع", rate: 0.05, rateLabel: "5%" },
+  { value: "services",   label: "تقديم الخدمات",   rate: 0.12, rateLabel: "12%" },
+  { value: "digital",    label: "رقمي / Auto-entrepreneur", rate: 0.005, rateLabel: "0.5%" },
+] as const;
+
+type ActivityType = (typeof IFU_ACTIVITY_TYPES)[number]["value"];
+
+// ─── Payment Schedule ─────────────────────────────────────────────────────────
+
+function getPaymentSchedule(totalTax: number, year: number) {
+  const q1 = Math.round(totalTax * 0.35);
+  const q2 = Math.round(totalTax * 0.35);
+  const q3 = totalTax - q1 - q2;
+  return [
+    { label: "القسط الأول (35%)",  period: `1-15 سبتمبر ${year}`,        amount: q1 },
+    { label: "القسط الثاني (35%)", period: `1-15 ديسمبر ${year}`,        amount: q2 },
+    { label: "القسط الثالث (30%)", period: `قبل 30 جوان ${year + 1}`, amount: q3 },
+  ];
+}
+
+// ─── Deadline helper ──────────────────────────────────────────────────────────
+
+function currentDeadline(taxType: string) {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+
+  if (taxType === "G12") {
+    const slots = [
+      { label: "القسط الأول", month: 8,  day: 15 },
+      { label: "القسط الثاني", month: 11, day: 15 },
+      { label: "القسط الثالث", month: 5,  day: 30, nextYear: true },
+    ];
+    const next =
+      slots.find(s => !s.nextYear && s.month > m) ??
+      slots.find(s => s.nextYear) ??
+      slots[0];
+    const deadline = new Date(y + (next.nextYear ? 1 : 0), next.month, next.day);
+    const daysLeft = Math.ceil((deadline.getTime() - now.getTime()) / 86_400_000);
+    return { label: `IFU - ${next.label}`, date: deadline.toLocaleDateString("fr-DZ"), daysLeft, urgent: daysLeft <= 7 };
+  }
+
+  const deadlineDay = 20;
+  const deadlineMonth = now.getDate() > deadlineDay ? m + 1 : m;
+  const deadline = new Date(y, deadlineMonth, deadlineDay);
+  const daysLeft = Math.ceil((deadline.getTime() - now.getTime()) / 86_400_000);
+  const monthName = deadline.toLocaleString("ar-DZ", { month: "long" });
+  return { label: `G50 - ${monthName} ${y}`, date: deadline.toLocaleDateString("fr-DZ"), daysLeft, urgent: daysLeft <= 7 };
+}
 
 function fmt(n: number) {
   return n.toLocaleString("fr-DZ") + " دج";
 }
 
-function currentDeadline(taxType: string): { label: string; date: string; daysLeft: number; urgent: boolean } {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
+// ─── Schemas ──────────────────────────────────────────────────────────────────
 
-  if (taxType === "G12") {
-    const quarters = [
-      { label: "الثلاثي الأول", month: 2, day: 20 },
-      { label: "الثلاثي الثاني", month: 5, day: 20 },
-      { label: "الثلاثي الثالث", month: 8, day: 20 },
-      { label: "الثلاثي الرابع", month: 11, day: 20 },
-    ];
-    const next = quarters.find(q => q.month > month) ?? { ...quarters[0], month: quarters[0].month + 12 };
-    const deadline = new Date(year, next.month, next.day);
-    const daysLeft = Math.ceil((deadline.getTime() - now.getTime()) / 86400000);
-    return { label: `قسط IFU - ${next.label}`, date: deadline.toLocaleDateString("fr-DZ"), daysLeft, urgent: daysLeft <= 5 };
-  }
-
-  const deadlineDay = 20;
-  let deadlineMonth = month;
-  if (now.getDate() > deadlineDay) deadlineMonth = month + 1;
-  const deadline = new Date(year, deadlineMonth, deadlineDay);
-  const daysLeft = Math.ceil((deadline.getTime() - now.getTime()) / 86400000);
-  const monthName = deadline.toLocaleString("ar-DZ", { month: "long" });
-  return { label: `G50 - ${monthName} ${year}`, date: deadline.toLocaleDateString("fr-DZ"), daysLeft, urgent: daysLeft <= 5 };
-}
-
-// ─── IFU wizard form ────────────────────────────────────────────────────────
-
-const ifuStep1Schema = z.object({
-  period: z.string().min(4, "حدد الفترة"),
-  revenue: z.string().min(1, "أدخل رقم الأعمال"),
-  activity_type: z.enum(["commerce", "services"], { required_error: "حدد نوع النشاط" }),
+const ifuSchema = z.object({
+  period: z.string().min(4, "حدد السنة المالية (مثال: 2024)"),
+  revenue: z.string().min(1, "أدخل رقم الأعمال السنوي"),
+  activity_type: z.enum(["production", "services", "digital"], { required_error: "حدد نوع النشاط" }),
 });
 
-// ─── G50 wizard form ────────────────────────────────────────────────────────
-
-const g50Step1Schema = z.object({
-  period: z.string().min(4, "حدد الفترة"),
+const g50Schema = z.object({
+  period: z.string().min(4, "حدد الفترة (مثال: 2024-03)"),
   revenue: z.string().min(1, "أدخل رقم المبيعات"),
   purchases: z.string().optional(),
   salaries: z.string().optional(),
 });
 
-// ─── Tax Wizard ─────────────────────────────────────────────────────────────
+// ─── IFU Calculation ─────────────────────────────────────────────────────────
 
-function TaxWizard({ open, onClose, isIFU, companyId }: {
-  open: boolean; onClose: () => void; isIFU: boolean; companyId: string;
+interface IFUPreview {
+  revenue: number;
+  rate: number;
+  rateLabel: string;
+  rawTax: number;
+  tax: number;
+  minimumApplied: boolean;
+  schedule: ReturnType<typeof getPaymentSchedule>;
+  year: number;
+}
+
+function calcIFUTax(revenue: number, activityType: ActivityType, year: number): IFUPreview {
+  const activity = IFU_ACTIVITY_TYPES.find(a => a.value === activityType)!;
+  const rawTax = Math.round(revenue * activity.rate);
+  const tax = Math.max(rawTax, IFU_MINIMUM_TAX);
+  return {
+    revenue,
+    rate: activity.rate,
+    rateLabel: activity.rateLabel,
+    rawTax,
+    tax,
+    minimumApplied: rawTax < IFU_MINIMUM_TAX,
+    schedule: getPaymentSchedule(tax, year),
+    year,
+  };
+}
+
+// ─── G50 Preview ─────────────────────────────────────────────────────────────
+
+interface G50Preview {
+  revenue: number;
+  purchases: number;
+  salaries: number;
+  tap: number;
+  tva: number;
+  irg: number;
+  total: number;
+}
+
+// ─── Tax Wizard ───────────────────────────────────────────────────────────────
+
+function TaxWizard({
+  open, onClose, isIFU, companyId, hasStartupLabel,
+}: {
+  open: boolean;
+  onClose: () => void;
+  isIFU: boolean;
+  companyId: string;
+  hasStartupLabel: boolean;
 }) {
   const [step, setStep] = useState(1);
-  const [preview, setPreview] = useState<Record<string, number> | null>(null);
+  const [ifuPreview, setIfuPreview] = useState<IFUPreview | null>(null);
+  const [g50Preview, setG50Preview] = useState<G50Preview | null>(null);
   const createDeclaration = useCreateDeclaration();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const ifuForm = useForm({ resolver: zodResolver(ifuStep1Schema), defaultValues: { period: "", revenue: "", activity_type: "commerce" as const } });
-  const g50Form = useForm({ resolver: zodResolver(g50Step1Schema), defaultValues: { period: "", revenue: "", purchases: "", salaries: "" } });
+  const ifuForm = useForm({
+    resolver: zodResolver(ifuSchema),
+    defaultValues: { period: String(new Date().getFullYear()), revenue: "", activity_type: "production" as ActivityType },
+  });
+  const g50Form = useForm({
+    resolver: zodResolver(g50Schema),
+    defaultValues: { period: "", revenue: "", purchases: "", salaries: "" },
+  });
 
-  const handleReset = () => { setStep(1); setPreview(null); ifuForm.reset(); g50Form.reset(); };
+  const handleReset = () => { setStep(1); setIfuPreview(null); setG50Preview(null); ifuForm.reset(); g50Form.reset(); };
   const handleClose = () => { handleReset(); onClose(); };
 
-  // IFU calculation
-  const calcIFU = ifuForm.handleSubmit((vals) => {
-    const rev = parseFloat(vals.revenue.replace(/\s/g, ""));
-    if (isNaN(rev)) return;
-    const rate = vals.activity_type === "services" ? 0.05 : 0.005;
-    setPreview({ revenue: rev, rate, tax: Math.round(rev * rate) });
+  const onCalcIFU = ifuForm.handleSubmit((vals) => {
+    const rev = parseFloat(vals.revenue.replace(/[\s,]/g, ""));
+    if (isNaN(rev) || rev < 0) return;
+    const year = parseInt(vals.period) || new Date().getFullYear();
+    setIfuPreview(calcIFUTax(rev, vals.activity_type as ActivityType, year));
     setStep(2);
   });
 
-  // G50 calculation
-  const calcG50 = g50Form.handleSubmit((vals) => {
-    const rev = parseFloat(vals.revenue.replace(/\s/g, "")) || 0;
-    const purch = parseFloat((vals.purchases || "0").replace(/\s/g, "")) || 0;
-    const sal = parseFloat((vals.salaries || "0").replace(/\s/g, "")) || 0;
+  const onCalcG50 = g50Form.handleSubmit((vals) => {
+    const rev = parseFloat(vals.revenue.replace(/[\s,]/g, "")) || 0;
+    const purch = parseFloat((vals.purchases || "0").replace(/[\s,]/g, "")) || 0;
+    const sal = parseFloat((vals.salaries || "0").replace(/[\s,]/g, "")) || 0;
     const tap = Math.round(rev * 0.02);
     const tva = Math.round((rev - purch) * 0.19);
     const irg = Math.round(sal * 0.10);
-    setPreview({ revenue: rev, purchases: purch, salaries: sal, tap, tva, irg, total: tap + tva + irg });
+    setG50Preview({ revenue: rev, purchases: purch, salaries: sal, tap, tva, irg, total: tap + tva + irg });
     setStep(2);
   });
 
   const handleConfirm = async () => {
-    if (!preview) return;
     try {
-      const baseVals = isIFU ? ifuForm.getValues() : g50Form.getValues();
+      const period = isIFU ? ifuForm.getValues().period : g50Form.getValues().period;
       await createDeclaration.mutateAsync({
         data: {
           company_id: companyId,
-          period: baseVals.period,
+          period,
           tax_type: isIFU ? "G12" : "G50",
-          revenue: String(preview.revenue),
-          tax_rate: isIFU ? String(preview.rate) : undefined,
-          tax_amount: isIFU ? String(preview.tax) : undefined,
-          tap_amount: !isIFU ? String(preview.tap) : undefined,
-          tva_amount: !isIFU ? String(preview.tva) : undefined,
-          irg_amount: !isIFU ? String(preview.irg) : undefined,
-          purchases: !isIFU ? String(preview.purchases) : undefined,
-          salaries: !isIFU ? String(preview.salaries) : undefined,
+          revenue: isIFU ? String(ifuPreview!.revenue) : String(g50Preview!.revenue),
+          tax_rate: isIFU ? String(ifuPreview!.rate) : undefined,
+          tax_amount: isIFU ? String(ifuPreview!.tax) : undefined,
+          tap_amount: !isIFU ? String(g50Preview!.tap) : undefined,
+          tva_amount: !isIFU ? String(g50Preview!.tva) : undefined,
+          irg_amount: !isIFU ? String(g50Preview!.irg) : undefined,
+          purchases: !isIFU ? String(g50Preview!.purchases) : undefined,
+          salaries: !isIFU ? String(g50Preview!.salaries) : undefined,
           status: "pending",
         },
       });
@@ -139,45 +217,69 @@ function TaxWizard({ open, onClose, isIFU, companyId }: {
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-lg rounded-2xl p-0 overflow-hidden" dir="rtl">
+        {/* Header */}
         <div className="bg-gradient-to-br from-[#0f172a] to-[#1e293b] p-6 text-white">
           <DialogHeader>
-            <DialogTitle className="text-white text-xl font-bold">
-              معالج التصريح الجديد
-            </DialogTitle>
+            <DialogTitle className="text-white text-xl font-bold">معالج التصريح الجديد</DialogTitle>
           </DialogHeader>
-          <div className="flex items-center gap-2 mt-4">
-            {["إدخال البيانات", "الحساب الآلي", "التأكيد"].map((label, i) => (
-              <div key={i} className="flex items-center gap-2 flex-1">
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 border-2 ${step > i + 1 ? "bg-orange-500 border-orange-500 text-white" : step === i + 1 ? "border-orange-400 text-orange-400" : "border-slate-600 text-slate-500"}`}>
-                  {step > i + 1 ? "✓" : i + 1}
+          {!hasStartupLabel && (
+            <div className="flex items-center gap-2 mt-4">
+              {["إدخال البيانات", "الحساب الآلي", "التأكيد"].map((label, i) => (
+                <div key={i} className="flex items-center gap-2 flex-1">
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 border-2 ${step > i + 1 ? "bg-orange-500 border-orange-500 text-white" : step === i + 1 ? "border-orange-400 text-orange-400" : "border-slate-600 text-slate-500"}`}>
+                    {step > i + 1 ? "✓" : i + 1}
+                  </div>
+                  <span className={`text-xs hidden sm:block ${step >= i + 1 ? "text-orange-400" : "text-slate-500"}`}>{label}</span>
+                  {i < 2 && <div className="flex-1 h-px bg-slate-700 mx-1" />}
                 </div>
-                <span className={`text-xs hidden sm:block ${step >= i + 1 ? "text-orange-400" : "text-slate-500"}`}>{label}</span>
-                {i < 2 && <div className="flex-1 h-px bg-slate-700 mx-1"></div>}
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="p-6">
-          {/* Step 1 IFU */}
-          {step === 1 && isIFU && (
+          {/* Startup Label Exemption */}
+          {hasStartupLabel && (
+            <div className="text-center space-y-4">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+                <ShieldCheck className="w-8 h-8 text-green-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">معفاة من IFU</h3>
+                <p className="text-slate-500 text-sm mt-2">
+                  شركتك الناشئة الحاصلة على Label مؤهلة للإعفاء الكامل من الضريبة الجزافية الوحيدة (IFU) لعدة سنوات.
+                  لا يوجد ما يجب دفعه حالياً.
+                </p>
+              </div>
+              <div className="bg-green-50 rounded-2xl p-4 text-right">
+                <p className="text-xs text-green-700 font-medium">
+                  بناءً على المادة 282 من قانون الضرائب المباشرة، يُعفى حاملو Label الناشئة من الضريبة الجزافية الوحيدة لمدة تصل إلى 3 سنوات.
+                </p>
+              </div>
+              <Button onClick={handleClose} variant="outline" className="w-full rounded-xl">إغلاق</Button>
+            </div>
+          )}
+
+          {/* IFU Step 1 */}
+          {!hasStartupLabel && step === 1 && isIFU && (
             <Form {...ifuForm}>
-              <form onSubmit={calcIFU} className="space-y-4">
+              <form onSubmit={onCalcIFU} className="space-y-4">
                 <FormField control={ifuForm.control} name="period" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>الفترة (الثلاثي)</FormLabel>
+                    <FormLabel>السنة المالية</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="مثال: 2024-Q1" className="rounded-xl" data-testid="input-period" />
+                      <Input {...field} placeholder="2024" className="rounded-xl font-mono" data-testid="input-period" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
                 <FormField control={ifuForm.control} name="revenue" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>رقم الأعمال الثلاثي (دج)</FormLabel>
+                    <FormLabel>رقم الأعمال السنوي (دج)</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="2 500 000" className="rounded-xl text-left font-mono" dir="ltr" data-testid="input-revenue" />
+                      <Input {...field} placeholder="5 000 000" className="rounded-xl text-left font-mono" dir="ltr" data-testid="input-revenue" />
                     </FormControl>
+                    <p className="text-xs text-slate-400">أدخل رقم الأعمال الإجمالي للسنة كاملة</p>
                     <FormMessage />
                   </FormItem>
                 )} />
@@ -185,14 +287,17 @@ function TaxWizard({ open, onClose, isIFU, companyId }: {
                   <FormItem>
                     <FormLabel>نوع النشاط</FormLabel>
                     <FormControl>
-                      <div className="flex gap-3">
-                        {[{ val: "commerce", label: "تجاري (0.5%)" }, { val: "services", label: "خدماتي (5%)" }].map(opt => (
-                          <button key={opt.val} type="button"
-                            onClick={() => field.onChange(opt.val)}
-                            className={`flex-1 py-2.5 rounded-xl text-sm font-medium border-2 transition-colors ${field.value === opt.val ? "bg-orange-500 border-orange-500 text-white" : "border-slate-200 text-slate-600 hover:border-orange-300"}`}
-                            data-testid={`btn-activity-${opt.val}`}
+                      <div className="grid grid-cols-1 gap-2">
+                        {IFU_ACTIVITY_TYPES.map(opt => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => field.onChange(opt.value)}
+                            className={`flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium border-2 transition-colors text-right ${field.value === opt.value ? "bg-blue-500 border-blue-500 text-white" : "border-slate-200 text-slate-700 hover:border-blue-300 bg-white"}`}
+                            data-testid={`btn-activity-${opt.value}`}
                           >
-                            {opt.label}
+                            <span>{opt.label}</span>
+                            <span className={`font-bold font-mono text-base ${field.value === opt.value ? "text-white" : "text-blue-600"}`}>{opt.rateLabel}</span>
                           </button>
                         ))}
                       </div>
@@ -200,22 +305,22 @@ function TaxWizard({ open, onClose, isIFU, companyId }: {
                     <FormMessage />
                   </FormItem>
                 )} />
-                <Button type="submit" className="w-full bg-orange-500 hover:bg-orange-600 text-white rounded-xl py-5 font-bold flex items-center gap-2">
-                  <Calculator className="w-4 h-4" /> حساب الضريبة
+                <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-5 font-bold flex items-center justify-center gap-2">
+                  <Calculator className="w-4 h-4" /> حساب الضريبة الجزافية
                 </Button>
               </form>
             </Form>
           )}
 
-          {/* Step 1 G50 */}
-          {step === 1 && !isIFU && (
+          {/* G50 Step 1 */}
+          {!hasStartupLabel && step === 1 && !isIFU && (
             <Form {...g50Form}>
-              <form onSubmit={calcG50} className="space-y-4">
+              <form onSubmit={onCalcG50} className="space-y-4">
                 <FormField control={g50Form.control} name="period" render={({ field }) => (
                   <FormItem>
                     <FormLabel>الفترة (الشهر)</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="مثال: 2024-03" className="rounded-xl" data-testid="input-period" />
+                      <Input {...field} placeholder="2024-03" className="rounded-xl font-mono" data-testid="input-period" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -247,57 +352,84 @@ function TaxWizard({ open, onClose, isIFU, companyId }: {
                     </FormItem>
                   )} />
                 </div>
-                <Button type="submit" className="w-full bg-orange-500 hover:bg-orange-600 text-white rounded-xl py-5 font-bold flex items-center gap-2">
+                <Button type="submit" className="w-full bg-orange-500 hover:bg-orange-600 text-white rounded-xl py-5 font-bold flex items-center justify-center gap-2">
                   <Calculator className="w-4 h-4" /> حساب G50
                 </Button>
               </form>
             </Form>
           )}
 
-          {/* Step 2 – Preview */}
-          {step === 2 && preview && (
+          {/* IFU Preview */}
+          {!hasStartupLabel && step === 2 && isIFU && ifuPreview && (
             <div className="space-y-4">
               <div className="bg-slate-50 rounded-2xl p-5 space-y-3">
-                <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                  <Eye className="w-4 h-4 text-orange-500" /> معاينة الحساب
+                <h3 className="font-bold text-slate-800 flex items-center gap-2 text-sm">
+                  <Eye className="w-4 h-4 text-blue-600" /> نتيجة الحساب — IFU {ifuPreview.year}
                 </h3>
                 <div className="divide-y divide-slate-100">
-                  <div className="flex justify-between py-2.5 text-sm">
-                    <span className="text-slate-500">رقم الأعمال</span>
-                    <span className="font-mono font-semibold">{fmt(preview.revenue)}</span>
+                  <Row label="رقم الأعمال السنوي" value={fmt(ifuPreview.revenue)} />
+                  <Row label="نسبة IFU" value={ifuPreview.rateLabel} />
+                  <Row label="الضريبة المحسوبة" value={fmt(ifuPreview.rawTax)} />
+                  {ifuPreview.minimumApplied && (
+                    <div className="py-2.5 flex items-center gap-2 text-xs text-amber-700 bg-amber-50 rounded-xl px-3">
+                      <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                      طُبِّق الحد الأدنى الجبائي (Minimum Fiscal: {fmt(IFU_MINIMUM_TAX)})
+                    </div>
+                  )}
+                  <div className="flex justify-between py-2.5 text-base font-bold text-blue-700 bg-blue-50 rounded-xl px-3 mt-1">
+                    <span>المجموع السنوي المستحق</span>
+                    <span className="font-mono">{fmt(ifuPreview.tax)}</span>
                   </div>
-                  {isIFU && (
-                    <>
-                      <div className="flex justify-between py-2.5 text-sm">
-                        <span className="text-slate-500">نسبة الضريبة</span>
-                        <span className="font-mono font-semibold">{(preview.rate * 100).toFixed(1)}%</span>
-                      </div>
-                      <div className="flex justify-between py-2.5 text-sm font-bold text-orange-600">
-                        <span>مبلغ IFU المستحق</span>
-                        <span className="font-mono">{fmt(preview.tax)}</span>
-                      </div>
-                    </>
-                  )}
-                  {!isIFU && (
-                    <>
-                      <div className="flex justify-between py-2.5 text-sm">
-                        <span className="text-slate-500">TAP (2%)</span>
-                        <span className="font-mono font-semibold">{fmt(preview.tap)}</span>
-                      </div>
-                      <div className="flex justify-between py-2.5 text-sm">
-                        <span className="text-slate-500">TVA (19%)</span>
-                        <span className="font-mono font-semibold">{fmt(preview.tva)}</span>
-                      </div>
-                      <div className="flex justify-between py-2.5 text-sm">
-                        <span className="text-slate-500">IRG (10%)</span>
-                        <span className="font-mono font-semibold">{fmt(preview.irg)}</span>
-                      </div>
-                      <div className="flex justify-between py-2.5 text-base font-bold text-orange-600 bg-orange-50 rounded-xl px-3 mt-1">
-                        <span>المجموع المستحق</span>
-                        <span className="font-mono">{fmt(preview.total)}</span>
-                      </div>
-                    </>
-                  )}
+                </div>
+              </div>
+
+              {/* Payment Schedule */}
+              <div className="bg-white border border-slate-100 rounded-2xl p-4 space-y-2">
+                <h4 className="text-sm font-bold text-slate-700 mb-3">جدول الأقساط</h4>
+                {ifuPreview.schedule.map((s, i) => (
+                  <div key={i} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">{s.label}</p>
+                      <p className="text-xs text-slate-400">{s.period}</p>
+                    </div>
+                    <span className="font-mono font-bold text-blue-600">{fmt(s.amount)}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={() => setStep(1)} className="flex-1 rounded-xl" data-testid="btn-wizard-back">
+                  <ChevronRight className="w-4 h-4 ml-1" /> تعديل
+                </Button>
+                <Button
+                  onClick={handleConfirm}
+                  disabled={createDeclaration.isPending}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold"
+                  data-testid="btn-wizard-confirm"
+                >
+                  {createDeclaration.isPending ? <i className="fas fa-spinner fa-spin" /> : "حفظ التصريح"}
+                  <ChevronLeft className="w-4 h-4 mr-1" />
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* G50 Preview */}
+          {!hasStartupLabel && step === 2 && !isIFU && g50Preview && (
+            <div className="space-y-4">
+              <div className="bg-slate-50 rounded-2xl p-5 space-y-3">
+                <h3 className="font-bold text-slate-800 flex items-center gap-2 text-sm">
+                  <Eye className="w-4 h-4 text-orange-500" /> معاينة تصريح G50
+                </h3>
+                <div className="divide-y divide-slate-100">
+                  <Row label="رقم الأعمال" value={fmt(g50Preview.revenue)} />
+                  <Row label="TAP (2%)" value={fmt(g50Preview.tap)} />
+                  <Row label="TVA (19% صافي)" value={fmt(g50Preview.tva)} />
+                  <Row label="IRG (10% أجور)" value={fmt(g50Preview.irg)} />
+                  <div className="flex justify-between py-2.5 text-base font-bold text-orange-600 bg-orange-50 rounded-xl px-3 mt-1">
+                    <span>المجموع المستحق</span>
+                    <span className="font-mono">{fmt(g50Preview.total)}</span>
+                  </div>
                 </div>
               </div>
               <div className="flex gap-3">
@@ -310,8 +442,7 @@ function TaxWizard({ open, onClose, isIFU, companyId }: {
                   className="flex-1 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-bold"
                   data-testid="btn-wizard-confirm"
                 >
-                  {createDeclaration.isPending ? <i className="fas fa-spinner fa-spin"></i> : "حفظ التصريح"}
-                  <ChevronLeft className="w-4 h-4 mr-1" />
+                  {createDeclaration.isPending ? <i className="fas fa-spinner fa-spin" /> : "حفظ التصريح"}
                 </Button>
               </div>
             </div>
@@ -322,7 +453,16 @@ function TaxWizard({ open, onClose, isIFU, companyId }: {
   );
 }
 
-// ─── Main Taxes Page ─────────────────────────────────────────────────────────
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between py-2.5 text-sm">
+      <span className="text-slate-500">{label}</span>
+      <span className="font-mono font-semibold text-slate-800">{value}</span>
+    </div>
+  );
+}
+
+// ─── Main Taxes Page ──────────────────────────────────────────────────────────
 
 export default function TaxesPage() {
   const { selectedCompany } = useCompany();
@@ -333,6 +473,7 @@ export default function TaxesPage() {
   const updateStatus = useUpdateDeclarationStatus();
 
   const isIFU = selectedCompany?.tax_regime === "IFU";
+  const hasStartupLabel = selectedCompany?.has_startup_label === true;
   const companyId = selectedCompany?.id ?? "";
 
   const { data: declarations = [], isLoading } = useListDeclarations(
@@ -356,6 +497,8 @@ export default function TaxesPage() {
     });
   };
 
+  const regimeColor = isIFU ? "text-blue-600 bg-blue-50" : "text-orange-600 bg-orange-50";
+
   return (
     <PageLayout>
       <div className="space-y-8 max-w-6xl mx-auto p-8">
@@ -364,12 +507,19 @@ export default function TaxesPage() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h1 className="text-3xl font-bold text-slate-800">إدارة الضرائب</h1>
-            <p className="text-slate-500 mt-1 text-sm">
-              {selectedCompany?.company_name || "اختر شركة"} ·{" "}
-              <span className={`font-semibold ${isIFU ? "text-blue-600" : "text-orange-600"}`}>
-                {isIFU ? "نظام IFU" : selectedCompany?.tax_regime === "Real" ? "نظام حقيقي" : "نظام مبسط"}
-              </span>
-            </p>
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              <p className="text-slate-500 text-sm">{selectedCompany?.company_name || "اختر شركة"}</p>
+              {selectedCompany?.tax_regime && (
+                <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${regimeColor}`}>
+                  {isIFU ? "IFU - الضريبة الجزافية الوحيدة" : selectedCompany.tax_regime === "Real" ? "نظام حقيقي" : "RSI - نظام مبسط"}
+                </span>
+              )}
+              {hasStartupLabel && (
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-green-100 text-green-700 flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3" /> معفاة — Label ناشئة
+                </span>
+              )}
+            </div>
           </div>
           <Button
             onClick={() => setWizardOpen(true)}
@@ -394,17 +544,27 @@ export default function TaxesPage() {
                 <div className="flex-1">
                   <p className="text-slate-500 text-sm font-medium">الموعد القادم</p>
                   <p className="text-lg font-bold text-slate-800 mt-0.5">{deadline.label}</p>
-                  <p className="text-sm text-slate-500 mt-0.5">آخر أجل: <span className="font-mono font-semibold">{deadline.date}</span></p>
+                  <p className="text-sm text-slate-500 mt-0.5">
+                    آخر أجل: <span className="font-mono font-semibold">{deadline.date}</span>
+                  </p>
+                  {isIFU && !hasStartupLabel && (
+                    <p className="text-xs text-slate-400 mt-1">الأقساط: 35% سبتمبر — 35% ديسمبر — 30% جوان</p>
+                  )}
+                  {hasStartupLabel && (
+                    <p className="text-xs text-green-600 font-medium mt-1">لا يوجد أجل — شركتك معفاة من IFU</p>
+                  )}
                 </div>
-                <div className={`text-center px-4 py-3 rounded-2xl flex-shrink-0 ${deadline.urgent ? "bg-red-100" : isIFU ? "bg-blue-100" : "bg-orange-100"}`}>
-                  <p className={`text-3xl font-black ${deadline.urgent ? "text-red-600" : isIFU ? "text-blue-600" : "text-primary"}`}>{deadline.daysLeft}</p>
-                  <p className="text-xs text-slate-500 font-medium">يوم متبقي</p>
-                </div>
+                {!hasStartupLabel && (
+                  <div className={`text-center px-4 py-3 rounded-2xl flex-shrink-0 ${deadline.urgent ? "bg-red-100" : isIFU ? "bg-blue-100" : "bg-orange-100"}`}>
+                    <p className={`text-3xl font-black ${deadline.urgent ? "text-red-600" : isIFU ? "text-blue-600" : "text-primary"}`}>{deadline.daysLeft}</p>
+                    <p className="text-xs text-slate-500 font-medium">يوم متبقي</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
 
-          {/* Stats card */}
+          {/* Stats */}
           <Card className="border-0 shadow-xl shadow-slate-200/40 rounded-2xl bg-white">
             <CardContent className="p-6">
               <p className="text-slate-500 text-sm font-medium">التصريحات المسجلة</p>
@@ -422,6 +582,29 @@ export default function TaxesPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* IFU Rates Reference Card */}
+        {isIFU && (
+          <Card className="border-0 shadow-xl shadow-slate-200/40 rounded-2xl bg-gradient-to-br from-blue-50 to-slate-50">
+            <CardContent className="p-6">
+              <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <Calculator className="w-4 h-4 text-blue-600" />
+                جدول نسب IFU المعتمدة
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {IFU_ACTIVITY_TYPES.map(a => (
+                  <div key={a.value} className="bg-white rounded-xl p-4 border border-blue-100">
+                    <p className="text-2xl font-black text-blue-600 font-mono">{a.rateLabel}</p>
+                    <p className="text-sm text-slate-700 font-medium mt-1">{a.label}</p>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-slate-400 mt-3">
+                الحد الأدنى الجبائي: <span className="font-mono font-semibold text-slate-600">{fmt(IFU_MINIMUM_TAX)}</span> — يُطبَّق حتى إذا كان رقم الأعمال صفراً
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Archive Table */}
         <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/40 p-8 border border-slate-100">
@@ -459,12 +642,9 @@ export default function TaxesPage() {
               <table className="w-full text-right border-collapse">
                 <thead>
                   <tr className="border-b border-slate-100">
-                    <th className="pb-4 text-slate-500 font-medium px-3 text-sm">الفترة</th>
-                    <th className="pb-4 text-slate-500 font-medium px-3 text-sm">النوع</th>
-                    <th className="pb-4 text-slate-500 font-medium px-3 text-sm">رقم الأعمال</th>
-                    <th className="pb-4 text-slate-500 font-medium px-3 text-sm">المبلغ المستحق</th>
-                    <th className="pb-4 text-slate-500 font-medium px-3 text-sm">الحالة</th>
-                    <th className="pb-4 text-slate-500 font-medium px-3 text-sm">الإجراءات</th>
+                    {["الفترة", "النوع", "رقم الأعمال", "المبلغ المستحق", "الحالة", "الإجراءات"].map(h => (
+                      <th key={h} className="pb-4 text-slate-500 font-medium px-3 text-sm">{h}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
@@ -500,8 +680,7 @@ export default function TaxesPage() {
                                 className="flex items-center gap-1 text-xs text-green-600 hover:text-green-800 font-medium px-3 py-1.5 rounded-lg bg-green-50 hover:bg-green-100 transition-colors"
                                 data-testid={`btn-mark-paid-${d.id}`}
                               >
-                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                دفع
+                                <CheckCircle2 className="w-3.5 h-3.5" /> دفع
                               </button>
                             )}
                             <button
@@ -509,8 +688,7 @@ export default function TaxesPage() {
                               className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 font-medium px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors"
                               data-testid={`btn-download-${d.id}`}
                             >
-                              <Download className="w-3.5 h-3.5" />
-                              PDF
+                              <Download className="w-3.5 h-3.5" /> PDF
                             </button>
                           </div>
                         </td>
@@ -524,7 +702,13 @@ export default function TaxesPage() {
         </div>
       </div>
 
-      <TaxWizard open={wizardOpen} onClose={() => setWizardOpen(false)} isIFU={isIFU} companyId={companyId} />
+      <TaxWizard
+        open={wizardOpen}
+        onClose={() => setWizardOpen(false)}
+        isIFU={isIFU}
+        companyId={companyId}
+        hasStartupLabel={hasStartupLabel}
+      />
     </PageLayout>
   );
 }
