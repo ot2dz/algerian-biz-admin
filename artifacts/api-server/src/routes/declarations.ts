@@ -101,4 +101,54 @@ router.patch("/declarations/:id", async (req, res): Promise<void> => {
   res.json(serializeDeclaration(updated as unknown as Record<string, unknown>));
 });
 
+router.put("/declarations/:id", async (req, res): Promise<void> => {
+  const user = await getUserFromToken(req.headers.authorization);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { id } = req.params;
+  const body = req.body;
+
+  if (!body.period || !body.tax_type || !body.status) {
+    res.status(400).json({ error: "Missing required fields: period, tax_type, status" });
+    return;
+  }
+
+  const [updated] = await db
+    .update(declarationsTable)
+    .set({
+      period:     body.period,
+      tax_type:   body.tax_type,
+      revenue:    body.revenue     ?? null,
+      tax_rate:   body.tax_rate    ?? null,
+      tax_amount: body.tax_amount  ?? null,
+      tap_amount: body.tap_amount  ?? null,
+      tva_amount: body.tva_amount  ?? null,
+      irg_amount: body.irg_amount  ?? null,
+      purchases:  body.purchases   ?? null,
+      salaries:   body.salaries    ?? null,
+      status:     body.status,
+      notes:      body.notes       ?? null,
+    })
+    .where(and(eq(declarationsTable.id, id), eq(declarationsTable.owner_id, user.id)))
+    .returning();
+
+  if (!updated) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(serializeDeclaration(updated as unknown as Record<string, unknown>));
+});
+
+router.delete("/declarations/:id", async (req, res): Promise<void> => {
+  const user = await getUserFromToken(req.headers.authorization);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { id } = req.params;
+
+  const [deleted] = await db
+    .delete(declarationsTable)
+    .where(and(eq(declarationsTable.id, id), eq(declarationsTable.owner_id, user.id)))
+    .returning();
+
+  if (!deleted) { res.status(404).json({ error: "Not found" }); return; }
+  res.status(204).send();
+});
+
 export default router;

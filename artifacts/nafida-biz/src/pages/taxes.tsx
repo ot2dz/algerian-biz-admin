@@ -20,6 +20,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   CalendarClock, FileText, Plus, Download, CheckCircle2,
   ChevronLeft, ChevronRight, Calculator, Eye, ShieldCheck, AlertTriangle,
+  Pencil, Trash2, X,
 } from "lucide-react";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -463,6 +464,225 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
+// ─── Edit Declaration Modal ───────────────────────────────────────────────────
+
+type DeclarationRow = {
+  id: string;
+  period?: string | null;
+  tax_type?: string | null;
+  revenue?: string | null;
+  tax_rate?: string | null;
+  tax_amount?: string | null;
+  tap_amount?: string | null;
+  tva_amount?: string | null;
+  irg_amount?: string | null;
+  purchases?: string | null;
+  salaries?: string | null;
+  status?: string | null;
+  notes?: string | null;
+};
+
+const editIfuSchema = z.object({
+  period:        z.string().min(4, "حدد السنة"),
+  revenue:       z.string().min(1, "أدخل رقم الأعمال"),
+  activity_type: z.enum(["production", "services", "digital"]),
+});
+
+const editG50Schema = z.object({
+  period:    z.string().min(4, "حدد الفترة"),
+  revenue:   z.string().min(1, "أدخل المبيعات"),
+  purchases: z.string().optional(),
+  salaries:  z.string().optional(),
+});
+
+function activityFromRateStr(rate?: string | null): "production" | "services" | "digital" {
+  const r = parseFloat(rate ?? "0");
+  if (r <= 0.006) return "digital";
+  if (r >= 0.10)  return "services";
+  return "production";
+}
+
+function EditDeclarationModal({
+  declaration, onClose, onSaved, token,
+}: {
+  declaration: DeclarationRow;
+  onClose: () => void;
+  onSaved: () => void;
+  token: string;
+}) {
+  const { toast } = useToast();
+  const [saving, setSaving] = useState(false);
+  const isIFU = declaration.tax_type === "G12";
+
+  const ifuForm = useForm({
+    resolver: zodResolver(editIfuSchema),
+    defaultValues: {
+      period:        declaration.period ?? "",
+      revenue:       declaration.revenue ?? "",
+      activity_type: activityFromRateStr(declaration.tax_rate),
+    },
+  });
+
+  const g50Form = useForm({
+    resolver: zodResolver(editG50Schema),
+    defaultValues: {
+      period:    declaration.period ?? "",
+      revenue:   declaration.revenue ?? "",
+      purchases: declaration.purchases ?? "",
+      salaries:  declaration.salaries ?? "",
+    },
+  });
+
+  const handleSaveIFU = ifuForm.handleSubmit(async (vals) => {
+    const rev = parseFloat(vals.revenue.replace(/[\s,]/g, "")) || 0;
+    const actInfo = IFU_ACTIVITY_TYPES.find(a => a.value === vals.activity_type)!;
+    const rawTax = Math.round(rev * actInfo.rate);
+    const tax = Math.max(rawTax, IFU_MINIMUM_TAX);
+    await save({
+      period: vals.period, tax_type: "G12",
+      revenue: String(rev), tax_rate: String(actInfo.rate), tax_amount: String(tax),
+      status: declaration.status ?? "pending",
+    });
+  });
+
+  const handleSaveG50 = g50Form.handleSubmit(async (vals) => {
+    const rev   = parseFloat(vals.revenue.replace(/[\s,]/g, "")) || 0;
+    const purch = parseFloat((vals.purchases ?? "0").replace(/[\s,]/g, "")) || 0;
+    const sal   = parseFloat((vals.salaries  ?? "0").replace(/[\s,]/g, "")) || 0;
+    const tap = Math.round(rev * 0.02);
+    const tva = Math.round((rev - purch) * 0.19);
+    const irg = Math.round(sal * 0.10);
+    await save({
+      period: vals.period, tax_type: "G50",
+      revenue: String(rev), purchases: String(purch), salaries: String(sal),
+      tap_amount: String(tap), tva_amount: String(tva), irg_amount: String(irg),
+      status: declaration.status ?? "pending",
+    });
+  });
+
+  async function save(body: Record<string, string>) {
+    setSaving(true);
+    try {
+      const resp = await fetch(`/api/declarations/${declaration.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok) throw new Error(`خطأ ${resp.status}`);
+      toast({ title: "تم الحفظ", description: "تم تحديث التصريح بنجاح" });
+      onSaved();
+      onClose();
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "خطأ", description: err.message });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-md rounded-2xl p-0 overflow-hidden" dir="rtl">
+        <div className="bg-gradient-to-br from-[#0f172a] to-[#1e293b] px-6 py-5 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center gap-2">
+              <Pencil className="w-4 h-4 text-orange-400" />
+              تعديل التصريح
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-slate-400 text-xs mt-1">
+            {isIFU ? "تصريح IFU (G12)" : "تصريح G50"} — الفترة: {declaration.period}
+          </p>
+        </div>
+
+        <div className="p-6">
+          {isIFU ? (
+            <Form {...ifuForm}>
+              <form onSubmit={handleSaveIFU} className="space-y-4">
+                <FormField control={ifuForm.control} name="period" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>السنة المالية</FormLabel>
+                    <FormControl><Input {...field} placeholder="2024" className="rounded-xl font-mono" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={ifuForm.control} name="revenue" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>رقم الأعمال السنوي (دج)</FormLabel>
+                    <FormControl><Input {...field} placeholder="5 000 000" className="rounded-xl font-mono" dir="ltr" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={ifuForm.control} name="activity_type" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>نوع النشاط</FormLabel>
+                    <FormControl>
+                      <div className="grid grid-cols-1 gap-2">
+                        {IFU_ACTIVITY_TYPES.map(opt => (
+                          <button key={opt.value} type="button" onClick={() => field.onChange(opt.value)}
+                            className={`flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-medium border-2 transition-colors text-right ${field.value === opt.value ? "bg-blue-500 border-blue-500 text-white" : "border-slate-200 text-slate-700 hover:border-blue-300 bg-white"}`}>
+                            <span>{opt.label}</span>
+                            <span className={`font-mono font-bold ${field.value === opt.value ? "text-white" : "text-blue-600"}`}>{opt.rateLabel}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <div className="flex gap-3 pt-2">
+                  <Button type="button" variant="outline" onClick={onClose} className="flex-1 rounded-xl">إلغاء</Button>
+                  <Button type="submit" disabled={saving} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold">
+                    {saving ? <i className="fas fa-spinner fa-spin" /> : "حفظ التعديلات"}
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          ) : (
+            <Form {...g50Form}>
+              <form onSubmit={handleSaveG50} className="space-y-4">
+                <FormField control={g50Form.control} name="period" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>الفترة</FormLabel>
+                    <FormControl><Input {...field} placeholder="2024-03" className="rounded-xl font-mono" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={g50Form.control} name="revenue" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>رقم الأعمال (دج)</FormLabel>
+                    <FormControl><Input {...field} placeholder="850 000" className="rounded-xl font-mono" dir="ltr" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField control={g50Form.control} name="purchases" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>المشتريات (دج)</FormLabel>
+                      <FormControl><Input {...field} placeholder="200 000" className="rounded-xl font-mono" dir="ltr" /></FormControl>
+                    </FormItem>
+                  )} />
+                  <FormField control={g50Form.control} name="salaries" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>الأجور (دج)</FormLabel>
+                      <FormControl><Input {...field} placeholder="150 000" className="rounded-xl font-mono" dir="ltr" /></FormControl>
+                    </FormItem>
+                  )} />
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <Button type="button" variant="outline" onClick={onClose} className="flex-1 rounded-xl">إلغاء</Button>
+                  <Button type="submit" disabled={saving} className="flex-1 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-bold">
+                    {saving ? <i className="fas fa-spinner fa-spin" /> : "حفظ التعديلات"}
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Main Taxes Page ──────────────────────────────────────────────────────────
 
 export default function TaxesPage() {
@@ -470,9 +690,44 @@ export default function TaxesPage() {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "paid">("all");
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [editingDeclaration, setEditingDeclaration] = useState<DeclarationRow | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [sessionToken, setSessionToken] = useState<string>("");
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const updateStatus = useUpdateDeclarationStatus();
+
+  const getToken = async (): Promise<string> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token ?? "";
+    setSessionToken(token);
+    return token;
+  };
+
+  const handleOpenEdit = async (d: DeclarationRow) => {
+    await getToken();
+    setEditingDeclaration(d);
+  };
+
+  const handleDelete = async (id: string) => {
+    setDeletingId(id);
+    try {
+      const token = await getToken();
+      const resp = await fetch(`/api/declarations/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!resp.ok && resp.status !== 204) throw new Error(`خطأ ${resp.status}`);
+      queryClient.invalidateQueries({ queryKey: getListDeclarationsQueryKey({ company_id: companyId }) });
+      toast({ title: "تم الحذف", description: "تم حذف التصريح بنجاح" });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "خطأ في الحذف", description: err.message });
+    } finally {
+      setDeletingId(null);
+      setDeleteConfirmId(null);
+    }
+  };
 
   const handleDownloadPDF = async (declarationId: string, taxType: string, pdfVariant: "G12" | "G12Bis" = "G12") => {
     if (taxType !== "G12") {
@@ -707,14 +962,50 @@ export default function TaxesPage() {
                           </span>
                         </td>
                         <td className="py-4 px-3">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             {!isPaid && (
                               <button
                                 onClick={() => handleMarkPaid(d.id)}
-                                className="flex items-center gap-1 text-xs text-green-600 hover:text-green-800 font-medium px-3 py-1.5 rounded-lg bg-green-50 hover:bg-green-100 transition-colors"
+                                className="flex items-center gap-1 text-xs text-green-600 hover:text-green-800 font-medium px-2.5 py-1.5 rounded-lg bg-green-50 hover:bg-green-100 transition-colors"
                                 data-testid={`btn-mark-paid-${d.id}`}
                               >
                                 <CheckCircle2 className="w-3.5 h-3.5" /> دفع
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleOpenEdit(d as DeclarationRow)}
+                              className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 font-medium px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 transition-colors"
+                              data-testid={`btn-edit-${d.id}`}
+                              title="تعديل التصريح"
+                            >
+                              <Pencil className="w-3.5 h-3.5" /> تعديل
+                            </button>
+                            {deleteConfirmId === d.id ? (
+                              <span className="flex items-center gap-1">
+                                <button
+                                  onClick={() => handleDelete(d.id)}
+                                  disabled={deletingId === d.id}
+                                  className="text-xs text-white bg-red-500 hover:bg-red-600 font-semibold px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                                  data-testid={`btn-confirm-delete-${d.id}`}
+                                >
+                                  {deletingId === d.id ? <i className="fas fa-spinner fa-spin" /> : "تأكيد"}
+                                </button>
+                                <button
+                                  onClick={() => setDeleteConfirmId(null)}
+                                  className="text-xs text-slate-500 hover:text-slate-700 px-2 py-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+                                  data-testid={`btn-cancel-delete-${d.id}`}
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => setDeleteConfirmId(d.id)}
+                                className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-medium px-2.5 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 transition-colors"
+                                data-testid={`btn-delete-${d.id}`}
+                                title="حذف التصريح"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             )}
                             {d.tax_type === "G12" ? (
@@ -772,6 +1063,15 @@ export default function TaxesPage() {
         companyId={companyId}
         hasStartupLabel={hasStartupLabel}
       />
+
+      {editingDeclaration && sessionToken && (
+        <EditDeclarationModal
+          declaration={editingDeclaration}
+          token={sessionToken}
+          onClose={() => setEditingDeclaration(null)}
+          onSaved={() => queryClient.invalidateQueries({ queryKey: getListDeclarationsQueryKey({ company_id: companyId }) })}
+        />
+      )}
     </PageLayout>
   );
 }
