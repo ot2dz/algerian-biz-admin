@@ -18,6 +18,7 @@ export const declarationsTable = pgTable("declarations", {
   salaries: numeric("salaries", { precision: 15, scale: 2 }),
   status: text("status").notNull().default("pending"),
   notes: text("notes"),
+  payment_plan: text("payment_plan"),
   created_at: timestamp("created_at").defaultNow(),
 });
 

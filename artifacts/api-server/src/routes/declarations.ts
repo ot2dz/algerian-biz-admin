@@ -77,6 +77,7 @@ router.post("/declarations", async (req, res): Promise<void> => {
       salaries: body.salaries ?? null,
       status: body.status,
       notes: body.notes ?? null,
+      payment_plan: body.payment_plan ?? null,
     })
     .returning();
 
@@ -116,23 +117,59 @@ router.put("/declarations/:id", async (req, res): Promise<void> => {
   const [updated] = await db
     .update(declarationsTable)
     .set({
-      period:     body.period,
-      tax_type:   body.tax_type,
-      revenue:    body.revenue     ?? null,
-      tax_rate:   body.tax_rate    ?? null,
-      tax_amount: body.tax_amount  ?? null,
-      tap_amount: body.tap_amount  ?? null,
-      tva_amount: body.tva_amount  ?? null,
-      irg_amount: body.irg_amount  ?? null,
-      purchases:  body.purchases   ?? null,
-      salaries:   body.salaries    ?? null,
-      status:     body.status,
-      notes:      body.notes       ?? null,
+      period:       body.period,
+      tax_type:     body.tax_type,
+      revenue:      body.revenue       ?? null,
+      tax_rate:     body.tax_rate      ?? null,
+      tax_amount:   body.tax_amount    ?? null,
+      tap_amount:   body.tap_amount    ?? null,
+      tva_amount:   body.tva_amount    ?? null,
+      irg_amount:   body.irg_amount    ?? null,
+      purchases:    body.purchases     ?? null,
+      salaries:     body.salaries      ?? null,
+      status:       body.status,
+      notes:        body.notes         ?? null,
+      payment_plan: body.payment_plan  ?? null,
     })
     .where(and(eq(declarationsTable.id, id), eq(declarationsTable.owner_id, user.id)))
     .returning();
 
   if (!updated) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(serializeDeclaration(updated as unknown as Record<string, unknown>));
+});
+
+// Update a single installment status within payment_plan
+router.patch("/declarations/:id/installments/:index", async (req, res): Promise<void> => {
+  const user = await getUserFromToken(req.headers.authorization);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { id, index } = req.params;
+  const idx = parseInt(index, 10);
+  const { status } = req.body;
+
+  if (!status || isNaN(idx)) { res.status(400).json({ error: "status and valid index required" }); return; }
+
+  const [row] = await db
+    .select()
+    .from(declarationsTable)
+    .where(and(eq(declarationsTable.id, id), eq(declarationsTable.owner_id, user.id)));
+
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+
+  type Installment = { label: string; period: string; amount: number; status: string };
+  const installments: Installment[] = row.payment_plan ? JSON.parse(row.payment_plan) : [];
+  if (idx < 0 || idx >= installments.length) { res.status(400).json({ error: "Invalid index" }); return; }
+
+  installments[idx].status = status;
+  const allPaid = installments.every(i => i.status === "paid");
+  const newPaymentPlan = JSON.stringify(installments);
+
+  const [updated] = await db
+    .update(declarationsTable)
+    .set({ payment_plan: newPaymentPlan, status: allPaid ? "paid" : "pending" })
+    .where(and(eq(declarationsTable.id, id), eq(declarationsTable.owner_id, user.id)))
+    .returning();
+
   res.json(serializeDeclaration(updated as unknown as Record<string, unknown>));
 });
 

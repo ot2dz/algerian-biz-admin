@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { PageLayout } from "@/components/Sidebar";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,7 +19,8 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import {
   CalendarClock, FileText, Plus, Download, CheckCircle2,
-  ChevronLeft, ChevronRight, Calculator, Eye, ShieldCheck, AlertTriangle,
+  ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
+  Calculator, Eye, ShieldCheck, AlertTriangle,
   Pencil, Trash2, X,
 } from "lucide-react";
 import { z } from "zod";
@@ -217,6 +218,19 @@ function TaxWizard({
   const handleConfirm = async () => {
     try {
       const period = isIFU ? ifuForm.getValues().period : g50Form.getValues().period;
+
+      // Build payment_plan JSON for IFU split-payment option
+      let payment_plan: string | undefined;
+      if (isIFU && ifuPreview && paymentOptionIdx === 1) {
+        const installments = ifuPreview.options[1].installments.map(inst => ({
+          label:  inst.label,
+          period: inst.period,
+          amount: inst.amount,
+          status: "pending",
+        }));
+        payment_plan = JSON.stringify(installments);
+      }
+
       await createDeclaration.mutateAsync({
         data: {
           company_id: companyId,
@@ -231,6 +245,7 @@ function TaxWizard({
           purchases: !isIFU ? String(g50Preview!.purchases) : undefined,
           salaries: !isIFU ? String(g50Preview!.salaries) : undefined,
           status: "pending",
+          payment_plan,
         },
       });
       queryClient.invalidateQueries({ queryKey: getListDeclarationsQueryKey({ company_id: companyId }) });
@@ -752,6 +767,8 @@ export default function TaxesPage() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [sessionToken, setSessionToken] = useState<string>("");
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [payingInstallmentKey, setPayingInstallmentKey] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const updateStatus = useUpdateDeclarationStatus();
@@ -784,6 +801,34 @@ export default function TaxesPage() {
     } finally {
       setDeletingId(null);
       setDeleteConfirmId(null);
+    }
+  };
+
+  const toggleExpand = (id: string) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const handlePayInstallment = async (declarationId: string, index: number) => {
+    const key = `${declarationId}-${index}`;
+    setPayingInstallmentKey(key);
+    try {
+      const token = await getToken();
+      const resp = await fetch(`/api/declarations/${declarationId}/installments/${index}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status: "paid" }),
+      });
+      if (!resp.ok) throw new Error(`خطأ ${resp.status}`);
+      queryClient.invalidateQueries({ queryKey: getListDeclarationsQueryKey({ company_id: companyId }) });
+      toast({ title: "تم الدفع", description: "تم تسجيل دفع القسط بنجاح" });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "خطأ", description: err.message });
+    } finally {
+      setPayingInstallmentKey(null);
     }
   };
 
@@ -1004,9 +1049,33 @@ export default function TaxesPage() {
                       ? parseFloat(d.tax_amount ?? "0")
                       : (parseFloat(d.tap_amount ?? "0") + parseFloat(d.tva_amount ?? "0") + parseFloat(d.irg_amount ?? "0"));
                     const isPaid = d.status === "paid";
+
+                    type Installment = { label: string; period: string; amount: number; status: string };
+                    const installments: Installment[] = (d as any).payment_plan
+                      ? JSON.parse((d as any).payment_plan)
+                      : [];
+                    const hasInstallments = installments.length > 0;
+                    const isExpanded = expandedIds.has(d.id);
+                    const paidCount = installments.filter(i => i.status === "paid").length;
+
                     return (
-                      <tr key={d.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
-                        <td className="py-4 px-3 font-mono text-sm text-slate-700">{d.period}</td>
+                      <React.Fragment key={d.id}>
+                      <tr className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                        <td className="py-4 px-3 font-mono text-sm text-slate-700">
+                          <div className="flex items-center gap-1">
+                            {d.period}
+                            {hasInstallments && (
+                              <button onClick={() => toggleExpand(d.id)} className="text-slate-400 hover:text-blue-500 transition-colors" title="عرض الأقساط">
+                                {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                              </button>
+                            )}
+                          </div>
+                          {hasInstallments && (
+                            <p className="text-xs text-blue-500 font-medium mt-0.5">
+                              {paidCount}/{installments.length} أقساط مدفوعة
+                            </p>
+                          )}
+                        </td>
                         <td className="py-4 px-3">
                           <Badge variant="outline" className={`font-semibold text-xs ${d.tax_type === "G12" ? "border-blue-300 text-blue-600 bg-blue-50" : "border-orange-300 text-orange-600 bg-orange-50"}`}>
                             {d.tax_type}
@@ -1109,6 +1178,49 @@ export default function TaxesPage() {
                           </div>
                         </td>
                       </tr>
+
+                      {/* Installment sub-rows */}
+                      {hasInstallments && isExpanded && installments.map((inst, i) => {
+                        const instPaid = inst.status === "paid";
+                        const instKey = `${d.id}-${i}`;
+                        return (
+                          <tr key={instKey} className="bg-blue-50/60 border-b border-blue-100">
+                            <td className="py-3 px-6 pr-10" colSpan={3}>
+                              <div className="flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${instPaid ? "bg-green-500" : "bg-orange-400"}`} />
+                                <div>
+                                  <p className="text-xs font-semibold text-slate-700">{inst.label}</p>
+                                  <p className="text-xs text-slate-400">{inst.period}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-3 px-3 font-mono font-bold text-blue-700 text-sm">
+                              {fmt(inst.amount)}
+                            </td>
+                            <td className="py-3 px-3">
+                              <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${instPaid ? "text-green-700 bg-green-100" : "text-orange-700 bg-orange-100"}`}>
+                                {instPaid ? "مدفوع" : "معلق"}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3">
+                              {!instPaid && (
+                                <button
+                                  onClick={() => handlePayInstallment(d.id, i)}
+                                  disabled={payingInstallmentKey === instKey}
+                                  className="flex items-center gap-1 text-xs text-green-600 hover:text-green-800 font-semibold px-3 py-1.5 rounded-lg bg-green-50 hover:bg-green-100 border border-green-200 transition-colors disabled:opacity-50"
+                                  data-testid={`btn-pay-installment-${d.id}-${i}`}
+                                >
+                                  {payingInstallmentKey === instKey
+                                    ? <i className="fas fa-spinner fa-spin" />
+                                    : <CheckCircle2 className="w-3.5 h-3.5" />}
+                                  دفع
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      </React.Fragment>
                     );
                   })}
                 </tbody>

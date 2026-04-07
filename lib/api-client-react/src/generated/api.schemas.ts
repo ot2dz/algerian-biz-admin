@@ -71,6 +71,7 @@ export interface Declaration {
   salaries?: string;
   status: string;
   notes?: string;
+  payment_plan?: string;
   created_at?: string;
 }
 
@@ -88,6 +89,7 @@ export interface CreateDeclarationBody {
   salaries?: string;
   status: string;
   notes?: string;
+  payment_plan?: string;
 }
 
 export interface UpdateDeclarationStatusBody {

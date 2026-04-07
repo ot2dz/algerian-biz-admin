@@ -111,6 +111,7 @@ export const ListDeclarationsResponseItem = zod.object({
   salaries: zod.string().optional(),
   status: zod.string(),
   notes: zod.string().optional(),
+  payment_plan: zod.string().optional(),
   created_at: zod.string().optional(),
 });
 export const ListDeclarationsResponse = zod.array(ListDeclarationsResponseItem);
@@ -132,6 +133,7 @@ export const CreateDeclarationBody = zod.object({
   salaries: zod.string().optional(),
   status: zod.string(),
   notes: zod.string().optional(),
+  payment_plan: zod.string().optional(),
 });
 
 /**
@@ -161,5 +163,6 @@ export const UpdateDeclarationStatusResponse = zod.object({
   salaries: zod.string().optional(),
   status: zod.string(),
   notes: zod.string().optional(),
+  payment_plan: zod.string().optional(),
   created_at: zod.string().optional(),
 });

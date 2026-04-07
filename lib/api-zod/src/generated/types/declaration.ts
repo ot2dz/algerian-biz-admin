@@ -22,5 +22,6 @@ export interface Declaration {
   salaries?: string;
   status: string;
   notes?: string;
+  payment_plan?: string;
   created_at?: string;
 }

@@ -307,6 +307,8 @@ components:
           type: string
         notes:
           type: string
+        payment_plan:
+          type: string
         created_at:
           type: string
       required:
@@ -345,6 +347,8 @@ components:
         status:
           type: string
         notes:
+          type: string
+        payment_plan:
           type: string
       required:
         - company_id
