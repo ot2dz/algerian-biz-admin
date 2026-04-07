@@ -27,26 +27,43 @@ import { zodResolver } from "@hookform/resolvers/zod";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const IFU_MINIMUM_TAX = 10_000; // الحد الأدنى للضريبة الجزافية بالدينار الجزائري
+const IFU_MINIMUM_TAX  = 30_000;    // الحد الأدنى للضريبة الجزافية — يُدفع كاملاً عند التصريح
+const IFU_REVENUE_CAP  = 8_000_000; // السقف القانوني لنظام IFU
 
 const IFU_ACTIVITY_TYPES = [
-  { value: "production", label: "إنتاج وبيع السلع", rate: 0.05, rateLabel: "5%" },
-  { value: "services",   label: "تقديم الخدمات",   rate: 0.12, rateLabel: "12%" },
-  { value: "digital",    label: "رقمي / Auto-entrepreneur", rate: 0.005, rateLabel: "0.5%" },
+  { value: "production", label: "إنتاج وبيع السلع",          rate: 0.05, rateLabel: "5%" },
+  { value: "services",   label: "الأنشطة الأخرى / الخدمات", rate: 0.12, rateLabel: "12%" },
 ] as const;
 
 type ActivityType = (typeof IFU_ACTIVITY_TYPES)[number]["value"];
 
-// ─── Payment Schedule ─────────────────────────────────────────────────────────
+// ─── Payment Options (IFU – 2 valid options per regulations) ─────────────────
 
-function getPaymentSchedule(totalTax: number, year: number) {
-  const q1 = Math.round(totalTax * 0.35);
-  const q2 = Math.round(totalTax * 0.35);
-  const q3 = totalTax - q1 - q2;
+interface IFUPaymentOption {
+  label: string;
+  installments: Array<{ label: string; period: string; amount: number }>;
+}
+
+function getPaymentOptions(totalTax: number, year: number): [IFUPaymentOption, IFUPaymentOption] {
+  const half    = Math.round(totalTax * 0.50);
+  const quarter = Math.round(totalTax * 0.25);
+  const last    = totalTax - half - quarter;
+
   return [
-    { label: "القسط الأول (35%)",  period: `1-15 سبتمبر ${year}`,        amount: q1 },
-    { label: "القسط الثاني (35%)", period: `1-15 ديسمبر ${year}`,        amount: q2 },
-    { label: "القسط الثالث (30%)", period: `قبل 30 جوان ${year + 1}`, amount: q3 },
+    {
+      label: "الدفع الكامل عند الإيداع",
+      installments: [
+        { label: "المبلغ الإجمالي", period: `1 فيفري – 30 جوان ${year}`, amount: totalTax },
+      ],
+    },
+    {
+      label: "الدفع بالتقسيط (خيار 2)",
+      installments: [
+        { label: "50% عند الإيداع",   period: `1 فيفري – 30 جوان ${year}`, amount: half    },
+        { label: "25% القسط الأول",   period: `قبل 15 سبتمبر ${year}`,     amount: quarter },
+        { label: "25% القسط الثاني",  period: `قبل 15 ديسمبر ${year}`,     amount: last    },
+      ],
+    },
   ];
 }
 
@@ -55,21 +72,26 @@ function getPaymentSchedule(totalTax: number, year: number) {
 function currentDeadline(taxType: string) {
   const now = new Date();
   const y = now.getFullYear();
-  const m = now.getMonth();
+  const m = now.getMonth(); // 0-indexed
 
   if (taxType === "G12") {
-    const slots = [
-      { label: "القسط الأول", month: 8,  day: 15 },
-      { label: "القسط الثاني", month: 11, day: 15 },
-      { label: "القسط الثالث", month: 5,  day: 30, nextYear: true },
+    // Filing period: 1 Feb – 30 Jun  →  then installments: Sep 15, Dec 15
+    // G12 bis (final): before 15 Feb of next year
+    type Slot = { label: string; month: number; day: number; nextYear?: boolean };
+    const slots: Slot[] = [
+      { label: "إيداع G12 التقديري",      month: 5,  day: 30 },          // Jun 30
+      { label: "القسط الأول (25%)",       month: 8,  day: 15 },          // Sep 15
+      { label: "القسط الثاني (25%)",      month: 11, day: 15 },          // Dec 15
+      { label: "إيداع G12 bis النهائي",   month: 1,  day: 15, nextYear: true }, // Feb 15
     ];
     const next =
       slots.find(s => !s.nextYear && s.month > m) ??
+      slots.find(s => !s.nextYear && s.month === m && s.day >= now.getDate()) ??
       slots.find(s => s.nextYear) ??
       slots[0];
     const deadline = new Date(y + (next.nextYear ? 1 : 0), next.month, next.day);
     const daysLeft = Math.ceil((deadline.getTime() - now.getTime()) / 86_400_000);
-    return { label: `IFU - ${next.label}`, date: deadline.toLocaleDateString("fr-DZ"), daysLeft, urgent: daysLeft <= 7 };
+    return { label: `IFU – ${next.label}`, date: deadline.toLocaleDateString("fr-DZ"), daysLeft, urgent: daysLeft <= 14 };
   }
 
   const deadlineDay = 20;
@@ -77,7 +99,7 @@ function currentDeadline(taxType: string) {
   const deadline = new Date(y, deadlineMonth, deadlineDay);
   const daysLeft = Math.ceil((deadline.getTime() - now.getTime()) / 86_400_000);
   const monthName = deadline.toLocaleString("ar-DZ", { month: "long" });
-  return { label: `G50 - ${monthName} ${y}`, date: deadline.toLocaleDateString("fr-DZ"), daysLeft, urgent: daysLeft <= 7 };
+  return { label: `G50 – ${monthName} ${y}`, date: deadline.toLocaleDateString("fr-DZ"), daysLeft, urgent: daysLeft <= 7 };
 }
 
 function fmt(n: number) {
@@ -89,7 +111,7 @@ function fmt(n: number) {
 const ifuSchema = z.object({
   period: z.string().min(4, "حدد السنة المالية (مثال: 2024)"),
   revenue: z.string().min(1, "أدخل رقم الأعمال السنوي"),
-  activity_type: z.enum(["production", "services", "digital"], { required_error: "حدد نوع النشاط" }),
+  activity_type: z.enum(["production", "services"], { required_error: "حدد نوع النشاط" }),
 });
 
 const g50Schema = z.object({
@@ -108,7 +130,8 @@ interface IFUPreview {
   rawTax: number;
   tax: number;
   minimumApplied: boolean;
-  schedule: ReturnType<typeof getPaymentSchedule>;
+  exceedsCap: boolean;
+  options: [IFUPaymentOption, IFUPaymentOption];
   year: number;
 }
 
@@ -123,7 +146,8 @@ function calcIFUTax(revenue: number, activityType: ActivityType, year: number): 
     rawTax,
     tax,
     minimumApplied: rawTax < IFU_MINIMUM_TAX,
-    schedule: getPaymentSchedule(tax, year),
+    exceedsCap: revenue > IFU_REVENUE_CAP,
+    options: getPaymentOptions(tax, year),
     year,
   };
 }
@@ -154,6 +178,7 @@ function TaxWizard({
   const [step, setStep] = useState(1);
   const [ifuPreview, setIfuPreview] = useState<IFUPreview | null>(null);
   const [g50Preview, setG50Preview] = useState<G50Preview | null>(null);
+  const [paymentOptionIdx, setPaymentOptionIdx] = useState<0 | 1>(0);
   const createDeclaration = useCreateDeclaration();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -167,7 +192,7 @@ function TaxWizard({
     defaultValues: { period: "", revenue: "", purchases: "", salaries: "" },
   });
 
-  const handleReset = () => { setStep(1); setIfuPreview(null); setG50Preview(null); ifuForm.reset(); g50Form.reset(); };
+  const handleReset = () => { setStep(1); setIfuPreview(null); setG50Preview(null); setPaymentOptionIdx(0); ifuForm.reset(); g50Form.reset(); };
   const handleClose = () => { handleReset(); onClose(); };
 
   const onCalcIFU = ifuForm.handleSubmit((vals) => {
@@ -275,16 +300,27 @@ function TaxWizard({
                     <FormMessage />
                   </FormItem>
                 )} />
-                <FormField control={ifuForm.control} name="revenue" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>رقم الأعمال السنوي (دج)</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder="5 000 000" className="rounded-xl text-left font-mono" dir="ltr" data-testid="input-revenue" />
-                    </FormControl>
-                    <p className="text-xs text-slate-400">أدخل رقم الأعمال الإجمالي للسنة كاملة</p>
-                    <FormMessage />
-                  </FormItem>
-                )} />
+                <FormField control={ifuForm.control} name="revenue" render={({ field }) => {
+                  const rev = parseFloat((field.value || "0").replace(/[\s,]/g, ""));
+                  const overCap = !isNaN(rev) && rev > IFU_REVENUE_CAP;
+                  return (
+                    <FormItem>
+                      <FormLabel>رقم الأعمال التقديري للسنة (دج)</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="5 000 000" className="rounded-xl text-left font-mono" dir="ltr" data-testid="input-revenue" />
+                      </FormControl>
+                      {overCap ? (
+                        <p className="text-xs text-red-600 font-medium flex items-center gap-1">
+                          <AlertTriangle className="w-3.5 h-3.5 inline" />
+                          رقم الأعمال يتجاوز السقف القانوني لنظام IFU ({fmt(IFU_REVENUE_CAP)}) — سيتم تحويلك إلى النظام الحقيقي
+                        </p>
+                      ) : (
+                        <p className="text-xs text-slate-400">السقف القانوني لنظام IFU: {fmt(IFU_REVENUE_CAP)}</p>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }} />
                 <FormField control={ifuForm.control} name="activity_type" render={({ field }) => (
                   <FormItem>
                     <FormLabel>نوع النشاط</FormLabel>
@@ -385,18 +421,41 @@ function TaxWizard({
                 </div>
               </div>
 
-              {/* Payment Schedule */}
-              <div className="bg-white border border-slate-100 rounded-2xl p-4 space-y-2">
-                <h4 className="text-sm font-bold text-slate-700 mb-3">جدول الأقساط</h4>
-                {ifuPreview.schedule.map((s, i) => (
-                  <div key={i} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-800">{s.label}</p>
-                      <p className="text-xs text-slate-400">{s.period}</p>
+              {/* Revenue cap warning */}
+              {ifuPreview.exceedsCap && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-red-700 font-medium">
+                    رقم الأعمال يتجاوز السقف القانوني ({fmt(IFU_REVENUE_CAP)}). سيتم تحويلك تلقائياً إلى النظام الحقيقي في السنة القادمة.
+                  </p>
+                </div>
+              )}
+
+              {/* Payment Options */}
+              <div className="space-y-2">
+                <h4 className="text-sm font-bold text-slate-700">اختر طريقة الدفع</h4>
+                <div className="grid grid-cols-2 gap-2">
+                  {ifuPreview.options.map((opt, i) => (
+                    <button key={i} type="button" onClick={() => setPaymentOptionIdx(i as 0 | 1)}
+                      className={`text-xs px-3 py-2 rounded-xl font-semibold border-2 transition-colors ${paymentOptionIdx === i ? "bg-blue-600 border-blue-600 text-white" : "border-slate-200 text-slate-600 hover:border-blue-300 bg-white"}`}>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="bg-blue-50 rounded-xl p-3 space-y-2">
+                  {ifuPreview.options[paymentOptionIdx].installments.map((s, i) => (
+                    <div key={i} className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-semibold text-slate-700">{s.label}</p>
+                        <p className="text-xs text-slate-400">{s.period}</p>
+                      </div>
+                      <span className="font-mono font-bold text-blue-600 text-sm">{fmt(s.amount)}</span>
                     </div>
-                    <span className="font-mono font-bold text-blue-600">{fmt(s.amount)}</span>
-                  </div>
-                ))}
+                  ))}
+                </div>
+                <p className="text-xs text-slate-400">
+                  فترة الإيداع: 1 فيفري – 30 جوان {ifuPreview.year} • الحد الأدنى: {fmt(IFU_MINIMUM_TAX)}
+                </p>
               </div>
 
               <div className="flex gap-3">
@@ -485,7 +544,7 @@ type DeclarationRow = {
 const editIfuSchema = z.object({
   period:        z.string().min(4, "حدد السنة"),
   revenue:       z.string().min(1, "أدخل رقم الأعمال"),
-  activity_type: z.enum(["production", "services", "digital"]),
+  activity_type: z.enum(["production", "services"]),
 });
 
 const editG50Schema = z.object({
@@ -495,10 +554,9 @@ const editG50Schema = z.object({
   salaries:  z.string().optional(),
 });
 
-function activityFromRateStr(rate?: string | null): "production" | "services" | "digital" {
+function activityFromRateStr(rate?: string | null): "production" | "services" {
   const r = parseFloat(rate ?? "0");
-  if (r <= 0.006) return "digital";
-  if (r >= 0.10)  return "services";
+  if (r >= 0.10) return "services";
   return "production";
 }
 
@@ -878,9 +936,9 @@ export default function TaxesPage() {
             <CardContent className="p-6">
               <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
                 <Calculator className="w-4 h-4 text-blue-600" />
-                جدول نسب IFU المعتمدة
+                نسب IFU المعتمدة لعام 2026
               </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {IFU_ACTIVITY_TYPES.map(a => (
                   <div key={a.value} className="bg-white rounded-xl p-4 border border-blue-100">
                     <p className="text-2xl font-black text-blue-600 font-mono">{a.rateLabel}</p>
@@ -888,8 +946,12 @@ export default function TaxesPage() {
                   </div>
                 ))}
               </div>
-              <p className="text-xs text-slate-400 mt-3">
-                الحد الأدنى الجبائي: <span className="font-mono font-semibold text-slate-600">{fmt(IFU_MINIMUM_TAX)}</span> — يُطبَّق حتى إذا كان رقم الأعمال صفراً
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-500">
+                <span>الحد الأدنى الجبائي: <span className="font-mono font-semibold text-slate-700">{fmt(IFU_MINIMUM_TAX)}</span></span>
+                <span>السقف القانوني: <span className="font-mono font-semibold text-slate-700">{fmt(IFU_REVENUE_CAP)}</span></span>
+              </div>
+              <p className="text-xs text-slate-400 mt-1">
+                فترة الإيداع (G12): 1 فيفري – 30 جوان • التصريح النهائي (G12 bis): قبل 15 فيفري من السنة الموالية
               </p>
             </CardContent>
           </Card>
