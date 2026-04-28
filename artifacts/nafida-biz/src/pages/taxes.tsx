@@ -832,11 +832,7 @@ export default function TaxesPage() {
     }
   };
 
-  const handleDownloadPDF = async (declarationId: string, taxType: string, pdfVariant: "G12" | "G12Bis" = "G12") => {
-    if (taxType !== "G12") {
-      toast({ title: "قريباً", description: "تحميل PDF لـ G50 قيد التطوير" });
-      return;
-    }
+  const handleDownloadPDF = async (declarationId: string, taxType: string, pdfVariant: "G12" | "G12Bis" | "G50" = "G12") => {
     try {
       setDownloadingId(declarationId + pdfVariant);
       const { data: { session } } = await supabase.auth.getSession();
@@ -1168,11 +1164,16 @@ export default function TaxesPage() {
                               </>
                             ) : (
                               <button
-                                onClick={() => toast({ title: "قريباً", description: "تحميل PDF لـ G50 قيد التطوير" })}
-                                className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 font-medium px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors"
-                                data-testid={`btn-download-${d.id}`}
+                                onClick={() => handleDownloadPDF(d.id, d.tax_type ?? "", "G50")}
+                                disabled={downloadingId === d.id + "G50"}
+                                className="flex items-center gap-1 text-xs text-orange-600 hover:text-orange-800 font-medium px-3 py-1.5 rounded-lg bg-orange-50 hover:bg-orange-100 border border-orange-200 transition-colors disabled:opacity-50"
+                                data-testid={`btn-download-g50-${d.id}`}
+                                title="تحميل تصريح G50"
                               >
-                                <Download className="w-3.5 h-3.5" /> PDF
+                                {downloadingId === d.id + "G50"
+                                  ? <i className="fas fa-spinner fa-spin w-3.5 h-3.5" />
+                                  : <Download className="w-3.5 h-3.5" />}
+                                G50
                               </button>
                             )}
                           </div>

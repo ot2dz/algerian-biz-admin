@@ -143,6 +143,128 @@ const G12BIS_PAGE0 = {
   ifu_comp_total:    { x: 524, y: 348 },
 };
 
+/** Parse period string like "2024-01" → { month: "Janvier", quarter: "1er Trimestre", year: "2024" } */
+function parsePeriod(period: string | null) {
+  const months = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+  const monthsAr = ["جانفي","فيفري","مارس","أبريل","ماي","جوان","جويلية","أوت","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+  if (!period) return { month: "", quarter: "", year: String(new Date().getFullYear()), monthNum: "" };
+  const [year, mon] = period.split("-");
+  const mIdx = parseInt(mon ?? "1") - 1;
+  const q = Math.ceil((mIdx + 1) / 3);
+  const qLabels = ["1er", "2ème", "3ème", "4ème"];
+  return {
+    year: year ?? "",
+    month: months[mIdx] ?? "",
+    monthAr: monthsAr[mIdx] ?? "",
+    quarter: `${qLabels[q - 1] ?? ""} Trimestre`,
+    monthNum: mon ?? "",
+  };
+}
+
+/** G50 form coordinate map (A4 = 595×842 pts) */
+const G50_COORDS = {
+  // Header
+  mois:         { x: 128, y: 792 },   // "Mois de …"
+  trimestre:    { x: 118, y: 776 },   // "Trimestre …"
+  // Identification
+  nom:          { x: 165, y: 686 },   // M ……… (name)
+  activite:     { x: 165, y: 669 },
+  adresse:      { x: 165, y: 651 },
+  nif:          { x: 102, y: 613 },   // NIF boxes (write as string)
+  nis:          { x: 102, y: 631 },   // NIS boxes
+  code_act:     { x: 527, y: 669 },   // code activité box (top-right)
+  // TAP table — C1A13 "sans réfaction" row (row 3)
+  // Columns: CA (left) | CA imposable (mid-right) | Montant (far right)
+  tap_ca:       { x: 271, y: 559 },
+  tap_imposable:{ x: 365, y: 559 },
+  tap_montant:  { x: 488, y: 559 },
+  // C1A20 libérales row (if services)
+  lib_ca:       { x: 271, y: 540 },
+  lib_imposable:{ x: 365, y: 540 },
+  lib_montant:  { x: 488, y: 540 },
+  // TAP Total row
+  total_ca:     { x: 271, y: 522 },
+  total_imp:    { x: 365, y: 522 },
+  total_montant:{ x: 488, y: 522 },
+  // IBS Acomptes section (below TAP) - 1st installment
+  ibs_1st:      { x: 488, y: 463 },
+  ibs_total:    { x: 488, y: 443 },
+  // Signature date
+  sig_date:     { x: 120, y: 95 },
+};
+
+// ── G50 PDF generator ─────────────────────────────────────────────────────────
+
+async function generateG50(
+  company: { company_name: string; nif_number: string | null; rc_number: string | null },
+  declaration: {
+    period: string | null;
+    revenue: string | null;
+    tap_amount: string | null;
+    tva_amount: string | null;
+    irg_amount: string | null;
+    salaries: string | null;
+  }
+): Promise<Uint8Array> {
+  const templateBytes = loadAsset("g50_template.pdf");
+  const fontBytes = loadAsset("arabic.ttf");
+
+  const pdfDoc = await PDFDocument.load(templateBytes);
+  pdfDoc.registerFontkit(fontkit);
+
+  const arabicFont = await pdfDoc.embedFont(fontBytes);
+  const latinFont  = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+  const page = pdfDoc.getPage(0);
+
+  function draw(text: string, coord: { x: number; y: number }, size = 8, arabic = false) {
+    if (!text) return;
+    page.drawText(text, {
+      x: coord.x, y: coord.y, size,
+      font: arabic ? arabicFont : latinFont,
+      color: rgb(0, 0, 0.7),
+    });
+  }
+
+  const { year, month, quarter } = parsePeriod(declaration.period);
+  const rev     = parseFloat(declaration.revenue  ?? "0");
+  const tap     = parseFloat(declaration.tap_amount ?? "0");
+  const revStr  = fmtDA(rev);
+  const tapStr  = fmtDA(tap);
+  const c       = G50_COORDS;
+
+  // ── Header
+  draw(month, c.mois, 8);
+  draw(quarter, c.trimestre, 8);
+
+  // ── Identification
+  const isArabicName = /[\u0600-\u06FF]/.test(company.company_name);
+  draw(company.company_name, c.nom, 8, isArabicName);
+  draw(company.nif_number ?? "", c.nif, 7);
+
+  // ── TAP Section — C1A13 "Affaires sans réfaction" (most common)
+  draw(revStr, c.tap_ca, 8);
+  draw(revStr, c.tap_imposable, 8);
+  draw(tapStr, c.tap_montant, 8);
+
+  // ── TAP Total row
+  draw(revStr, c.total_ca, 8);
+  draw(revStr, c.total_imp, 8);
+  draw(tapStr, c.total_montant, 8);
+
+  // ── IBS Acomptes — fill only if IRG/IBS data available
+  const irg = parseFloat(declaration.irg_amount ?? "0");
+  if (irg > 0) {
+    draw(fmtDA(irg), c.ibs_1st, 8);
+    draw(fmtDA(irg), c.ibs_total, 8);
+  }
+
+  // ── Signature date
+  draw(new Date().toLocaleDateString("fr-DZ"), c.sig_date, 7);
+
+  return pdfDoc.save();
+}
+
 // ── G12 Preliminary PDF generator ────────────────────────────────────────────
 
 async function generateG12(
@@ -341,13 +463,22 @@ router.get("/generate-tax-pdf", async (req, res): Promise<void> => {
     }
 
     const isG12Bis = type === "G12Bis";
+    const isG50    = type === "G50";
     const year = declaration.period?.substring(0, 4) ?? String(new Date().getFullYear());
 
-    const pdfBytes = isG12Bis
-      ? await generateG12Bis(company, declaration)
-      : await generateG12(company, declaration);
+    let pdfBytes: Uint8Array;
+    let formType: string;
 
-    const formType = isG12Bis ? "G12Bis" : "G12";
+    if (isG50) {
+      pdfBytes = await generateG50(company, declaration);
+      formType = "G50";
+    } else if (isG12Bis) {
+      pdfBytes = await generateG12Bis(company, declaration);
+      formType = "G12Bis";
+    } else {
+      pdfBytes = await generateG12(company, declaration);
+      formType = "G12";
+    }
     const filename = `${formType}_${company.company_name}_${year}.pdf`
       .replace(/\s+/g, "_")
       .replace(/[^\w\-_.]/g, "");
