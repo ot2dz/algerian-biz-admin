@@ -470,7 +470,7 @@ router.get("/generate-tax-pdf", async (req, res): Promise<void> => {
     let formType: string;
 
     if (isG50) {
-      pdfBytes = await generateG50(company, declaration);
+      pdfBytes = loadAsset("g50_template.pdf");
       formType = "G50";
     } else if (isG12Bis) {
       pdfBytes = await generateG12Bis(company, declaration);
