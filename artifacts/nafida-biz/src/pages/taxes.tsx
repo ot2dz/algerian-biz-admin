@@ -21,7 +21,7 @@ import {
   CalendarClock, FileText, Plus, Download, CheckCircle2,
   ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
   Calculator, Eye, ShieldCheck, AlertTriangle,
-  Pencil, Trash2, X,
+  Pencil, Trash2, X, CreditCard, Lock, Wifi,
 } from "lucide-react";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -756,6 +756,257 @@ function EditDeclarationModal({
   );
 }
 
+// ─── Payment Modal ────────────────────────────────────────────────────────────
+
+interface PaymentTarget {
+  id: string;
+  taxType: string;
+  period: string;
+  amount: number;
+}
+
+type CardType = "cib" | "edahabia";
+type PayStep  = "form" | "processing" | "success";
+
+function formatCardNum(raw: string) {
+  return raw.replace(/\D/g, "").slice(0, 16).replace(/(.{4})/g, "$1 ").trim();
+}
+function formatExpiry(raw: string) {
+  const digits = raw.replace(/\D/g, "").slice(0, 4);
+  return digits.length > 2 ? `${digits.slice(0,2)}/${digits.slice(2)}` : digits;
+}
+
+function PaymentModal({
+  target,
+  onClose,
+  onSuccess,
+}: {
+  target: PaymentTarget | null;
+  onClose: () => void;
+  onSuccess: (id: string) => void;
+}) {
+  const [cardType, setCardType] = useState<CardType>("cib");
+  const [cardNum, setCardNum]   = useState("");
+  const [holder, setHolder]     = useState("");
+  const [expiry, setExpiry]     = useState("");
+  const [cvv, setCvv]           = useState("");
+  const [step, setStep]         = useState<PayStep>("form");
+
+  if (!target) return null;
+
+  const fmt = (n: number) => n.toLocaleString("ar-DZ") + " دج";
+
+  const handlePay = () => {
+    setStep("processing");
+    setTimeout(() => {
+      setStep("success");
+      setTimeout(() => {
+        onSuccess(target.id);
+        onClose();
+      }, 1800);
+    }, 2200);
+  };
+
+  const cardFilled = cardNum.replace(/\s/g, "").length === 16 && holder.trim() && expiry.length === 5 && cvv.length >= 3;
+
+  const isCib = cardType === "cib";
+  const cardBg = isCib
+    ? "from-blue-800 to-blue-600"
+    : "from-amber-600 to-yellow-400";
+  const cardAccent = isCib ? "text-blue-200" : "text-yellow-100";
+
+  return (
+    <Dialog open={!!target} onOpenChange={() => { if (step !== "processing") onClose(); }}>
+      <DialogContent className="max-w-md p-0 overflow-hidden rounded-2xl border-0 shadow-2xl" dir="rtl">
+
+        {/* Demo Banner */}
+        <div className="flex items-center gap-2 bg-amber-50 border-b border-amber-200 px-5 py-2.5 text-xs text-amber-700">
+          <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" />
+          <span>وضع تجريبي — لن يتم خصم أي مبلغ حقيقي</span>
+        </div>
+
+        {step === "success" ? (
+          <div className="flex flex-col items-center justify-center gap-4 py-16 px-6">
+            <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center animate-pulse">
+              <CheckCircle2 className="w-10 h-10 text-green-500" />
+            </div>
+            <div className="text-center">
+              <p className="text-xl font-bold text-slate-800">تمت عملية الدفع</p>
+              <p className="text-sm text-slate-500 mt-1">{fmt(target.amount)} — {target.period}</p>
+            </div>
+          </div>
+        ) : step === "processing" ? (
+          <div className="flex flex-col items-center justify-center gap-5 py-16 px-6">
+            <div className="w-16 h-16 rounded-full border-4 border-blue-200 border-t-blue-600 animate-spin" />
+            <div className="text-center">
+              <p className="font-semibold text-slate-700">جارٍ معالجة الدفع...</p>
+              <p className="text-sm text-slate-400 mt-1">يرجى الانتظار</p>
+            </div>
+          </div>
+        ) : (
+          <>
+            <DialogHeader className="px-6 pt-5 pb-3">
+              <DialogTitle className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <CreditCard className="w-5 h-5 text-blue-600" />
+                دفع إلكتروني
+              </DialogTitle>
+              <p className="text-sm text-slate-500 mt-0.5">
+                {target.taxType} — الفترة: {target.period}
+              </p>
+              <div className="mt-2 bg-slate-50 rounded-xl px-4 py-2.5 flex items-center justify-between">
+                <span className="text-sm text-slate-500">المبلغ الواجب دفعه</span>
+                <span className="text-xl font-mono font-bold text-slate-800">{fmt(target.amount)}</span>
+              </div>
+            </DialogHeader>
+
+            <div className="px-6 pb-6 space-y-5">
+              {/* Card type selector */}
+              <div>
+                <p className="text-xs font-semibold text-slate-500 mb-2">نوع البطاقة</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {(["cib", "edahabia"] as CardType[]).map((type) => (
+                    <button
+                      key={type}
+                      onClick={() => setCardType(type)}
+                      className={`flex flex-col items-center gap-2 p-3.5 rounded-xl border-2 transition-all ${
+                        cardType === type
+                          ? type === "cib"
+                            ? "border-blue-500 bg-blue-50"
+                            : "border-amber-500 bg-amber-50"
+                          : "border-slate-200 bg-white hover:bg-slate-50"
+                      }`}
+                    >
+                      {type === "cib" ? (
+                        <>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-7 h-7 rounded-md bg-blue-700 flex items-center justify-center">
+                              <CreditCard className="w-4 h-4 text-white" />
+                            </div>
+                            <span className="font-bold text-blue-800 text-base tracking-wide">CIB</span>
+                          </div>
+                          <span className="text-xs text-slate-500">بطاقة بنكية</span>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-7 h-7 rounded-md bg-amber-500 flex items-center justify-center">
+                              <span className="text-white font-bold text-xs">ذ</span>
+                            </div>
+                            <span className="font-bold text-amber-700 text-sm">الذهبية</span>
+                          </div>
+                          <span className="text-xs text-slate-500">Edahabia</span>
+                        </>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Virtual card preview */}
+              <div className={`relative h-36 rounded-2xl bg-gradient-to-br ${cardBg} p-5 overflow-hidden shadow-lg`}>
+                <Wifi className={`absolute top-4 left-5 w-6 h-6 ${cardAccent} rotate-90`} />
+                <div className={`text-xs font-medium ${cardAccent} mb-4`}>
+                  {isCib ? "Carte Interbancaire CIB" : "Edahabia — الذهبية"}
+                </div>
+                <div className="font-mono text-white text-lg tracking-[0.2em] mb-3">
+                  {cardNum || "•••• •••• •••• ••••"}
+                </div>
+                <div className="flex items-end justify-between">
+                  <div>
+                    <p className={`text-xs ${cardAccent}`}>حامل البطاقة</p>
+                    <p className="text-white text-sm font-medium truncate max-w-[160px]">
+                      {holder || "الاسم الكامل"}
+                    </p>
+                  </div>
+                  <div className="text-left">
+                    <p className={`text-xs ${cardAccent}`}>صلاحية</p>
+                    <p className="text-white text-sm font-mono">{expiry || "MM/AA"}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card inputs */}
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 mb-1 block">رقم البطاقة</label>
+                  <div className="relative">
+                    <Input
+                      value={cardNum}
+                      onChange={e => setCardNum(formatCardNum(e.target.value))}
+                      placeholder="0000 0000 0000 0000"
+                      className="font-mono text-sm pl-10 tracking-widest"
+                      maxLength={19}
+                      dir="ltr"
+                    />
+                    <CreditCard className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 mb-1 block">اسم حامل البطاقة</label>
+                  <Input
+                    value={holder}
+                    onChange={e => setHolder(e.target.value.toUpperCase())}
+                    placeholder="NOM PRENOM"
+                    className="font-mono text-sm uppercase tracking-wide"
+                    dir="ltr"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 mb-1 block">تاريخ الانتهاء</label>
+                    <Input
+                      value={expiry}
+                      onChange={e => setExpiry(formatExpiry(e.target.value))}
+                      placeholder="MM/AA"
+                      className="font-mono text-sm text-center"
+                      maxLength={5}
+                      dir="ltr"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 mb-1 block">رمز CVV</label>
+                    <div className="relative">
+                      <Input
+                        value={cvv}
+                        onChange={e => setCvv(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                        placeholder="•••"
+                        type="password"
+                        className="font-mono text-sm text-center pl-8"
+                        maxLength={4}
+                        dir="ltr"
+                      />
+                      <Lock className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-slate-400" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Pay button */}
+              <button
+                onClick={handlePay}
+                disabled={!cardFilled}
+                className={`w-full py-3.5 rounded-xl font-bold text-white text-base transition-all flex items-center justify-center gap-2 ${
+                  isCib
+                    ? "bg-blue-700 hover:bg-blue-800 disabled:bg-blue-300"
+                    : "bg-amber-500 hover:bg-amber-600 disabled:bg-amber-200"
+                } disabled:cursor-not-allowed shadow-lg`}
+                data-testid="btn-pay-now"
+              >
+                <Lock className="w-4 h-4" />
+                تأكيد الدفع — {fmt(target.amount)}
+              </button>
+              <p className="text-center text-xs text-slate-400 flex items-center justify-center gap-1">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                دفع آمن ومشفر
+              </p>
+            </div>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Main Taxes Page ──────────────────────────────────────────────────────────
 
 export default function TaxesPage() {
@@ -769,6 +1020,7 @@ export default function TaxesPage() {
   const [sessionToken, setSessionToken] = useState<string>("");
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [payingInstallmentKey, setPayingInstallmentKey] = useState<string | null>(null);
+  const [paymentTarget, setPaymentTarget] = useState<PaymentTarget | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const updateStatus = useUpdateDeclarationStatus();
@@ -883,6 +1135,10 @@ export default function TaxesPage() {
         toast({ title: "تم التحديث", description: "تم تسجيل الدفع بنجاح" });
       },
     });
+  };
+
+  const handlePaymentSuccess = (id: string) => {
+    handleMarkPaid(id);
   };
 
   const regimeColor = isIFU ? "text-blue-600 bg-blue-50" : "text-orange-600 bg-orange-50";
@@ -1092,11 +1348,17 @@ export default function TaxesPage() {
                           <div className="flex items-center gap-1.5 flex-wrap">
                             {!isPaid && (
                               <button
-                                onClick={() => handleMarkPaid(d.id)}
-                                className="flex items-center gap-1 text-xs text-green-600 hover:text-green-800 font-medium px-2.5 py-1.5 rounded-lg bg-green-50 hover:bg-green-100 transition-colors"
-                                data-testid={`btn-mark-paid-${d.id}`}
+                                onClick={() => setPaymentTarget({
+                                  id: d.id,
+                                  taxType: d.tax_type ?? "",
+                                  period: d.period ?? "",
+                                  amount: total,
+                                })}
+                                className="flex items-center gap-1 text-xs text-white font-semibold px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm"
+                                data-testid={`btn-pay-electronic-${d.id}`}
+                                title="دفع إلكتروني بالبطاقة"
                               >
-                                <CheckCircle2 className="w-3.5 h-3.5" /> دفع
+                                <CreditCard className="w-3.5 h-3.5" /> دفع إلكتروني
                               </button>
                             )}
                             <button
@@ -1247,6 +1509,12 @@ export default function TaxesPage() {
           onSaved={() => queryClient.invalidateQueries({ queryKey: getListDeclarationsQueryKey({ company_id: companyId }) })}
         />
       )}
+
+      <PaymentModal
+        target={paymentTarget}
+        onClose={() => setPaymentTarget(null)}
+        onSuccess={handlePaymentSuccess}
+      />
     </PageLayout>
   );
 }
