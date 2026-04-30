@@ -11,7 +11,10 @@ const router: IRouter = Router();
 
 // ── Assets ──────────────────────────────────────────────────────────────────
 
-const ASSETS_DIR = path.resolve(process.cwd(), "assets");
+// __dirname is injected by the esbuild banner (points to the dist/ folder at runtime)
+// assets/ is one level up from dist/
+declare const __dirname: string;
+const ASSETS_DIR = path.resolve(__dirname, "..", "assets");
 
 function loadAsset(name: string): Buffer {
   return fs.readFileSync(path.join(ASSETS_DIR, name));
