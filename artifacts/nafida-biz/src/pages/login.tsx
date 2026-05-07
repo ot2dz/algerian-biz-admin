@@ -190,6 +190,7 @@ export default function LoginPage() {
 
   const onStep3Legal = (values: Step3Legal) => {
     setStep3Legal(values);
+    form4.setValue("tax_regime", "Real");
     setRegStep(4);
   };
 
@@ -684,58 +685,85 @@ export default function LoginPage() {
                 {regStep === 4 && (
                   <Form {...form4}>
                     <form onSubmit={form4.handleSubmit(onStep4)} className="space-y-4">
-                      <p className="text-sm text-slate-500 mb-2">اختر النظام الجبائي المناسب لنشاطك</p>
 
-                      {[
-                        { value: "IFU", label: "IFU — الضريبة الجزافية الوحيدة", desc: "للمؤسسات التي لا يتجاوز رقم أعمالها 8 مليون دج", color: "blue" },
-                        { value: "Real", label: "النظام الحقيقي", desc: "للشركات الكبيرة وفق محاسبة كاملة", color: "purple" },
-                        { value: "RSI", label: "RSI — النظام المبسط", desc: "نظام وسيط بين IFU والنظام الحقيقي", color: "teal" },
-                      ].map(regime => {
-                        const selected = form4.watch("tax_regime") === regime.value;
-                        const colorMap: Record<string, string> = {
-                          blue: "border-blue-400 bg-blue-50",
-                          purple: "border-purple-400 bg-purple-50",
-                          teal: "border-teal-400 bg-teal-50",
-                        };
-                        return (
-                          <button
-                            key={regime.value}
-                            type="button"
-                            onClick={() => form4.setValue("tax_regime", regime.value)}
-                            className={`w-full text-right p-4 rounded-2xl border-2 transition-all ${selected ? colorMap[regime.color] : "border-slate-200 hover:border-slate-300"}`}
-                          >
+                      {entityType === "legal" ? (
+                        /* Legal entity — Real regime only */
+                        <>
+                          <p className="text-sm text-slate-500 mb-2">النظام الجبائي المعتمد للشركات</p>
+                          <div className="p-5 rounded-2xl border-2 border-purple-400 bg-purple-50">
                             <div className="flex items-center justify-between">
                               <div>
-                                <p className="font-bold text-slate-800 text-sm">{regime.label}</p>
-                                <p className="text-xs text-slate-500 mt-0.5">{regime.desc}</p>
+                                <p className="font-bold text-slate-800 text-sm">النظام الحقيقي</p>
+                                <p className="text-xs text-slate-500 mt-0.5">النظام الإلزامي لجميع الشركات المعنوية وفق القانون الجزائري</p>
                               </div>
-                              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ml-3 ${selected ? "bg-orange-500 border-orange-500" : "border-slate-300"}`}>
-                                {selected && <Check className="w-3 h-3 text-white" />}
+                              <div className="w-5 h-5 rounded-full border-2 bg-purple-500 border-purple-500 flex items-center justify-center flex-shrink-0 ml-3">
+                                <Check className="w-3 h-3 text-white" />
                               </div>
                             </div>
-                          </button>
-                        );
-                      })}
-
-                      {form4.watch("tax_regime") === "IFU" && (
-                        <div
-                          onClick={() => form4.setValue("has_startup_label", !form4.watch("has_startup_label"))}
-                          className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-colors ${form4.watch("has_startup_label") ? "border-green-400 bg-green-50" : "border-slate-200 hover:border-green-300"}`}
-                        >
-                          <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${form4.watch("has_startup_label") ? "bg-green-500 border-green-500" : "border-slate-300"}`}>
-                            {form4.watch("has_startup_label") && <Check className="w-3 h-3 text-white" />}
                           </div>
-                          <div>
-                            <p className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
-                              <ShieldCheck className="w-4 h-4 text-green-600" /> شركة ناشئة حاصلة على Label
+                          <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                            <span className="text-amber-500 text-base mt-0.5">ℹ</span>
+                            <p className="text-xs text-amber-700 leading-relaxed">
+                              الشركات المعنوية (SARL، EURL، SPA...) ملزمة بالنظام الحقيقي وفق المادة 282 من قانون الضرائب المباشرة الجزائري.
                             </p>
-                            <p className="text-xs text-slate-500">معفاة من IFU لعدة سنوات وفقاً للقانون</p>
                           </div>
-                        </div>
-                      )}
+                        </>
+                      ) : (
+                        /* Natural person — all regimes */
+                        <>
+                          <p className="text-sm text-slate-500 mb-2">اختر النظام الجبائي المناسب لنشاطك</p>
+                          {[
+                            { value: "IFU", label: "IFU — الضريبة الجزافية الوحيدة", desc: "للمؤسسات التي لا يتجاوز رقم أعمالها 8 مليون دج", color: "blue" },
+                            { value: "Real", label: "النظام الحقيقي", desc: "للنشاطات الكبيرة وفق محاسبة كاملة", color: "purple" },
+                            { value: "RSI", label: "RSI — النظام المبسط", desc: "نظام وسيط بين IFU والنظام الحقيقي", color: "teal" },
+                          ].map(regime => {
+                            const selected = form4.watch("tax_regime") === regime.value;
+                            const colorMap: Record<string, string> = {
+                              blue: "border-blue-400 bg-blue-50",
+                              purple: "border-purple-400 bg-purple-50",
+                              teal: "border-teal-400 bg-teal-50",
+                            };
+                            return (
+                              <button
+                                key={regime.value}
+                                type="button"
+                                onClick={() => form4.setValue("tax_regime", regime.value)}
+                                className={`w-full text-right p-4 rounded-2xl border-2 transition-all ${selected ? colorMap[regime.color] : "border-slate-200 hover:border-slate-300"}`}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <p className="font-bold text-slate-800 text-sm">{regime.label}</p>
+                                    <p className="text-xs text-slate-500 mt-0.5">{regime.desc}</p>
+                                  </div>
+                                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ml-3 ${selected ? "bg-orange-500 border-orange-500" : "border-slate-300"}`}>
+                                    {selected && <Check className="w-3 h-3 text-white" />}
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
 
-                      {form4.formState.errors.tax_regime && (
-                        <p className="text-xs text-red-500">{form4.formState.errors.tax_regime.message}</p>
+                          {form4.watch("tax_regime") === "IFU" && (
+                            <div
+                              onClick={() => form4.setValue("has_startup_label", !form4.watch("has_startup_label"))}
+                              className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-colors ${form4.watch("has_startup_label") ? "border-green-400 bg-green-50" : "border-slate-200 hover:border-green-300"}`}
+                            >
+                              <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${form4.watch("has_startup_label") ? "bg-green-500 border-green-500" : "border-slate-300"}`}>
+                                {form4.watch("has_startup_label") && <Check className="w-3 h-3 text-white" />}
+                              </div>
+                              <div>
+                                <p className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
+                                  <ShieldCheck className="w-4 h-4 text-green-600" /> شركة ناشئة حاصلة على Label
+                                </p>
+                                <p className="text-xs text-slate-500">معفاة من IFU لعدة سنوات وفقاً للقانون</p>
+                              </div>
+                            </div>
+                          )}
+
+                          {form4.formState.errors.tax_regime && (
+                            <p className="text-xs text-red-500">{form4.formState.errors.tax_regime.message}</p>
+                          )}
+                        </>
                       )}
 
                       <div className="flex gap-3 pt-1">
