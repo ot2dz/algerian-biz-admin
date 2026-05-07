@@ -363,16 +363,8 @@ export default function LoginPage() {
             {/* ════ REGISTER ════ */}
             {isSignUp && regStep !== "done" && (
               <>
-                <div className="flex items-center justify-between mb-2">
+                <div className="mb-2">
                   <h2 className="text-2xl font-bold text-slate-800">إنشاء حساب جديد</h2>
-                  {regStep !== 1 && (
-                    <button
-                      onClick={() => setRegStep(prev => (typeof prev === "number" ? Math.max(1, prev - 1) as RegStep : 1))}
-                      className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"
-                    >
-                      <ChevronRight className="w-4 h-4" /> رجوع
-                    </button>
-                  )}
                 </div>
 
                 <StepIndicator current={typeof regStep === "number" ? regStep : 4} />
@@ -471,6 +463,15 @@ export default function LoginPage() {
                         <p className="text-sm text-slate-500 mt-0.5">تاجر فرد أو ممارس نشاط تجاري باسمه الشخصي</p>
                       </div>
                       <ChevronLeft className="w-5 h-5 text-slate-400 group-hover:text-orange-500 transition-colors" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRegStep(1)}
+                      className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50 transition-all font-medium"
+                      data-testid="button-back-step2"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                      رجوع إلى معلومات الحساب
                     </button>
                   </div>
                 )}
@@ -620,9 +621,19 @@ export default function LoginPage() {
                         </div>
                       </div>
 
-                      <Button type="submit" className="w-full py-5 rounded-xl font-bold bg-orange-500 hover:bg-orange-600 text-white flex items-center justify-center gap-2">
-                        التالي <ChevronLeft className="w-4 h-4" />
-                      </Button>
+                      <div className="flex gap-3 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setRegStep(2)}
+                          className="flex-1 flex items-center justify-center gap-2 py-4 rounded-xl border-2 border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50 transition-all font-medium"
+                          data-testid="button-back-step3legal"
+                        >
+                          <ChevronRight className="w-4 h-4" /> رجوع
+                        </button>
+                        <Button type="submit" className="flex-1 py-4 rounded-xl font-bold bg-orange-500 hover:bg-orange-600 text-white flex items-center justify-center gap-2">
+                          التالي <ChevronLeft className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </form>
                   </Form>
                 )}
@@ -652,9 +663,19 @@ export default function LoginPage() {
                           <FormMessage />
                         </FormItem>
                       )} />
-                      <Button type="submit" className="w-full py-5 rounded-xl font-bold bg-orange-500 hover:bg-orange-600 text-white flex items-center justify-center gap-2">
-                        التالي <ChevronLeft className="w-4 h-4" />
-                      </Button>
+                      <div className="flex gap-3 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setRegStep(2)}
+                          className="flex-1 flex items-center justify-center gap-2 py-4 rounded-xl border-2 border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50 transition-all font-medium"
+                          data-testid="button-back-step3natural"
+                        >
+                          <ChevronRight className="w-4 h-4" /> رجوع
+                        </button>
+                        <Button type="submit" className="flex-1 py-4 rounded-xl font-bold bg-orange-500 hover:bg-orange-600 text-white flex items-center justify-center gap-2">
+                          التالي <ChevronLeft className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </form>
                   </Form>
                 )}
@@ -717,9 +738,19 @@ export default function LoginPage() {
                         <p className="text-xs text-red-500">{form4.formState.errors.tax_regime.message}</p>
                       )}
 
-                      <Button type="submit" className="w-full py-5 rounded-xl font-bold bg-orange-500 hover:bg-orange-600 text-white flex items-center justify-center gap-2" disabled={isSubmitting}>
-                        {isSubmitting ? <i className="fas fa-spinner fa-spin" /> : <><Briefcase className="w-4 h-4" /> إنشاء الحساب</>}
-                      </Button>
+                      <div className="flex gap-3 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setRegStep(3)}
+                          className="flex-1 flex items-center justify-center gap-2 py-4 rounded-xl border-2 border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50 transition-all font-medium"
+                          data-testid="button-back-step4"
+                        >
+                          <ChevronRight className="w-4 h-4" /> رجوع
+                        </button>
+                        <Button type="submit" className="flex-1 py-4 rounded-xl font-bold bg-orange-500 hover:bg-orange-600 text-white flex items-center justify-center gap-2" disabled={isSubmitting}>
+                          {isSubmitting ? <i className="fas fa-spinner fa-spin" /> : <><Briefcase className="w-4 h-4" /> إنشاء الحساب</>}
+                        </Button>
+                      </div>
                     </form>
                   </Form>
                 )}
