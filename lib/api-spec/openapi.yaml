@@ -243,14 +243,38 @@ components:
           type: string
         company_name:
           type: string
-        nif_number:
+        entity_type:
           type: string
-        rc_number:
+        company_type:
           type: string
         tax_regime:
           type: string
         has_startup_label:
           type: boolean
+        email:
+          type: string
+        phone:
+          type: string
+        address:
+          type: string
+        nif_number:
+          type: string
+        nis_number:
+          type: string
+        rc_number:
+          type: string
+        ai_number:
+          type: string
+        tva_number:
+          type: string
+        director_name:
+          type: string
+        director_id_card:
+          type: string
+        director_role:
+          type: string
+        activity:
+          type: string
         created_at:
           type: string
       required:
@@ -263,14 +287,38 @@ components:
       properties:
         company_name:
           type: string
-        nif_number:
+        entity_type:
           type: string
-        rc_number:
+        company_type:
           type: string
         tax_regime:
           type: string
         has_startup_label:
           type: boolean
+        email:
+          type: string
+        phone:
+          type: string
+        address:
+          type: string
+        nif_number:
+          type: string
+        nis_number:
+          type: string
+        rc_number:
+          type: string
+        ai_number:
+          type: string
+        tva_number:
+          type: string
+        director_name:
+          type: string
+        director_id_card:
+          type: string
+        director_role:
+          type: string
+        activity:
+          type: string
       required:
         - company_name
 

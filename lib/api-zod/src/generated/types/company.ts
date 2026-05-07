@@ -10,9 +10,21 @@ export interface Company {
   id: string;
   owner_id: string;
   company_name: string;
-  nif_number?: string;
-  rc_number?: string;
+  entity_type?: string;
+  company_type?: string;
   tax_regime?: string;
   has_startup_label?: boolean;
+  email?: string;
+  phone?: string;
+  address?: string;
+  nif_number?: string;
+  nis_number?: string;
+  rc_number?: string;
+  ai_number?: string;
+  tva_number?: string;
+  director_name?: string;
+  director_id_card?: string;
+  director_role?: string;
+  activity?: string;
   created_at?: string;
 }

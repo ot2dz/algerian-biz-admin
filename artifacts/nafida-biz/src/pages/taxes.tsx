@@ -1118,7 +1118,7 @@ export default function TaxesPage() {
 
   const { data: declarations = [], isLoading } = useListDeclarations(
     { company_id: companyId },
-    { query: { enabled: !!companyId } }
+    { query: { enabled: !!companyId, queryKey: getListDeclarationsQueryKey({ company_id: companyId }) } }
   );
 
   const filtered = useMemo(() => {
