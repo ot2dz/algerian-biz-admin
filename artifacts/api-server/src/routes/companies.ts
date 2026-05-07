@@ -35,9 +35,17 @@ router.get("/companies", async (req, res): Promise<void> => {
     .where(eq(companiesTable.owner_id, user.id))
     .orderBy(companiesTable.created_at);
 
-  res.json(ListCompaniesResponse.parse(
-    companies.map(c => ({ ...c, created_at: c.created_at?.toISOString() }))
-  ));
+  // Strip null values → undefined so Zod optional string fields don't reject them
+  const serialized = companies.map(c => {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(c)) {
+      out[k] = v === null ? undefined : v;
+    }
+    out.created_at = c.created_at?.toISOString();
+    return out;
+  });
+
+  res.json(ListCompaniesResponse.parse(serialized));
 });
 
 router.post("/companies", async (req, res): Promise<void> => {
