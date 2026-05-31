@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -14,6 +14,7 @@ export const profilesTable = pgTable("profiles", {
   nis: text("nis"),
   rc: text("rc"),
   ai: text("ai"),
+  is_active: boolean("is_active").default(true).notNull(),
   created_at: timestamp("created_at").defaultNow(),
 });
 

@@ -1,21 +1,35 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, UserCircle, LogOut, Building2, ChevronDown, Check, ReceiptText } from "lucide-react";
+import { LayoutDashboard, UserCircle, LogOut, Building2, ChevronDown, Check, ReceiptText, Folder, Shield } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useCompany } from "@/context/CompanyContext";
 
 export function Sidebar() {
   const [location] = useLocation();
   const [companyDropdownOpen, setCompanyDropdownOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const { companies, selectedCompany, setSelectedCompany } = useCompany();
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
   };
 
+  useEffect(() => {
+    const token = localStorage.getItem("admin_token");
+    if (!token) { setIsAdmin(false); return; }
+    fetch("/api/admin/me", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => setIsAdmin(data.is_admin))
+      .catch(() => setIsAdmin(false));
+  }, []);
+
   const navItems = [
     { href: "/", label: "لوحة القيادة", icon: LayoutDashboard },
     { href: "/taxes", label: "الضرائب", icon: ReceiptText },
+    { href: "/files", label: "الملفات", icon: Folder },
+    ...(isAdmin ? [{ href: "/admin", label: "لوحة التحكم", icon: Shield }] : []),
     { href: "/profile", label: "الملف الشخصي", icon: UserCircle },
   ];
 

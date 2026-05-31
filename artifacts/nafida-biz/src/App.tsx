@@ -8,8 +8,11 @@ import LoginPage from "@/pages/login";
 import DashboardPage from "@/pages/dashboard";
 import ProfilePage from "@/pages/profile";
 import TaxesPage from "@/pages/taxes";
+import FilesPage from "@/pages/files";
+import AdminDashboardPage from "@/pages/admin";
 import AuthCallbackPage from "@/pages/auth-callback";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { AdminOnlyRoute } from "@/components/AdminOnlyRoute";
 import { CompanyProvider } from "@/context/CompanyContext";
 
 const queryClient = new QueryClient();
@@ -39,6 +42,20 @@ function Router() {
             <TaxesPage />
           </CompanyProvider>
         </ProtectedRoute>
+      </Route>
+      <Route path="/files">
+        <ProtectedRoute>
+          <CompanyProvider>
+            <FilesPage />
+          </CompanyProvider>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/admin">
+        <CompanyProvider>
+          <AdminOnlyRoute>
+            <AdminDashboardPage />
+          </AdminOnlyRoute>
+        </CompanyProvider>
       </Route>
       <Route component={NotFound} />
     </Switch>

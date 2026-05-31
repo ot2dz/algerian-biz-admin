@@ -20,3 +20,5 @@
 export * from "./profiles";
 export * from "./companies";
 export * from "./declarations";
+export * from "./admin_users";
+export * from "./user_files";

@@ -41,6 +41,15 @@ testem.log
 .DS_Store
 Thumbs.db
 
+# Environment files — secrets!
+.env
+.env.*
+!.env.example
+
+# AI / docs
+codebase.md
+.aidigestignore
+
 .cursor/rules/nx-rules.mdc
 .github/instructions/nx.instructions.md
 
