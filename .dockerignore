@@ -1,0 +1,11 @@
+node_modules
+.git
+.env
+.env.*
+dist
+.next
+.cache
+*.tsbuildinfo
+.DS_Store
+codebase.md
+.aidigestignore
