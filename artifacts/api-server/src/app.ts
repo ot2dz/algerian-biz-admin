@@ -36,7 +36,6 @@ const frontendDist = path.resolve(
   import.meta.dirname,
   "..",
   "..",
-  "..",
   "nafida-biz",
   "dist",
   "public",
